@@ -1,0 +1,798 @@
+/* ============================================================
+   LWN.net Design Clone - Personal Blog Stylesheet
+   一比一复刻 lwn.net 的视觉设计
+   ============================================================ */
+
+:root {
+  --PageBG: #ffffff;
+  --NewLeftColBG: #f0f0f0;
+  --MidColBG: #ffffff;
+  --HeadlineBG: #ffcc99;
+  --FormBG: #eeeeee;
+  --TextColor: black;
+  --LinkColor: DarkBlue;
+  --VLinkColor: #444;
+  --EQTextColor: #990099;
+  --TTBGColor: #eeeeee;
+  --OldCommentColor: #cccccc;
+  --LogoColor: green;
+  --ButtonColor: #ffddaa;
+  --ButtonHoverColor: #ffcc99;
+  --MaxTextWidth: 65;
+  --MinTextWidth: 40;
+  --FontFamily: inherit;
+  --QuoteFontStyle: normal;
+  --QuoteFontWeight: normal;
+  --QTextColor: darkred;
+  --QTextBG: white;
+  --HandsetBP: 48;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --PageBG: #000000;
+    --NewLeftColBG: #333333;
+    --MidColBG: #000000;
+    --HeadlineBG: #443333;
+    --FormBG: #333333;
+    --TextColor: white;
+    --LinkColor: LightBlue;
+    --VLinkColor: #bbb;
+    --EQTextColor: #77ff77;
+    --TTBGColor: #333333;
+    --OldCommentColor: #333333;
+    --QTextColor: pink;
+    --QTextBG: black;
+    --LogoColor: lightgreen;
+    --ButtonColor: #775566;
+    --ButtonHoverColor: #997788;
+  }
+}
+
+/* ---------- Base ---------- */
+
+body {
+  color: var(--TextColor);
+  background-color: var(--PageBG);
+  padding: 0;
+  font-family: var(--FontFamily), serif;
+}
+
+html {
+  font-family: inherit;
+  font: normal;
+}
+
+input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+textarea {
+  background: var(--PageBG);
+  color: var(--TextColor);
+  border-radius: 0.5em;
+  padding: 3px;
+}
+
+textarea:focus {
+  border-color: var(--LinkColor);
+}
+
+PRE {
+  white-space: pre;
+  overflow: visible;
+}
+
+PRE CODE {
+  white-space: pre;
+  background-color: var(--PageBG);
+  display: block;
+}
+
+TT, CODE {
+  white-space: nowrap;
+  background-color: var(--TTBGColor);
+}
+
+Q {
+  font-style: var(--QuoteFontStyle);
+  font-weight: var(--QuoteFontWeight);
+  color: var(--QTextColor);
+  background-color: var(--QTextBG);
+}
+
+Q::before { content: ""; }
+Q::after { content: ""; }
+
+h1 {
+  margin: 0 0 5px 0;
+  padding: 0;
+  color: var(--TextColor);
+}
+
+h2 {
+  margin: 20px 0 5px 0;
+  padding: 0;
+}
+
+h3 {
+  margin: 0 0 5px 0;
+  padding: 0;
+}
+
+/* ---------- Headlines ---------- */
+
+H2.Headline {
+  background-color: var(--HeadlineBG);
+  font-weight: bold;
+  font-size: larger;
+  border-radius: 0.5em;
+  padding-left: 6px;
+}
+
+DIV.PageHeadline {
+  text-align: center;
+  max-width: calc(var(--MaxTextWidth) * 1em);
+  margin-top: 1em;
+  margin-bottom: 2em;
+}
+
+DIV.PageHeadline H1 {
+  margin-bottom: 0.2em;
+}
+
+DIV.PageHeadline H2 {
+  margin-top: 0.2em;
+}
+
+H3.SummaryHL {
+  font-weight: bold;
+  font-size: larger;
+  text-decoration: underline;
+  margin-top: 0.4em;
+  margin-bottom: 0.4em;
+  background: var(--NewLeftColBG);
+}
+
+H3.SummaryHL A:link { color: var(--TextColor); }
+H3.SummaryHL A:visited { color: var(--TextColor); }
+
+/* ---------- Links ---------- */
+
+a { text-decoration: underline; }
+a:link { color: var(--LinkColor); }
+a:visited { color: var(--VLinkColor); }
+a:hover { color: var(--LinkColor); background-color: var(--FormBG); }
+a:visited:hover { color: var(--VLinkColor); }
+a img { vertical-align: top; margin-bottom: 0; }
+a.name { color: var(--TextColor); }
+a.name:link { color: var(--TextColor); }
+a.name:hover { color: var(--TextColor); }
+a.navmenu { color: var(--TextColor); }
+
+/* ---------- Spans ---------- */
+
+SPAN.Subscription { color: var(--LogoColor); }
+SPAN.Smaller { font-size: small; }
+SPAN.Bigger { font-size: large; }
+SPAN.ReallySmall { font-size: x-small; }
+SPAN.QuotedText { color: var(--EQTextColor); }
+SPAN.SearchMatch { font-weight: bold; text-decoration: underline; }
+span.nobreak { white-space: nowrap; }
+SPAN.red { color: red; }
+SPAN.invisible { display: none; }
+
+SPAN.PullQuote {
+  max-width: 30%;
+  float: right;
+  color: var(--TextColor);
+  background-color: var(--FormBG);
+  margin: 2px 0 2px 5px;
+  padding: 5px 2px 5px 0.5em;
+  border-style: none none none solid;
+  border-color: var(--HeadlineBG);
+  font-weight: normal;
+  font-size: larger;
+}
+
+/* ---------- Tables ---------- */
+
+TABLE {
+  border-collapse: separate;
+  border-spacing: 5px 0;
+}
+
+.Form {
+  background-color: var(--FormBG);
+  padding: 3px;
+}
+
+TABLE.Form TH { text-align: left; }
+TABLE.Form TD { padding: 2px 5px; }
+
+table.OddEven { border-collapse: separate; }
+table.OddEven tr:nth-child(even) { background-color: var(--MidColBG); }
+table.OddEven tr:nth-child(odd) { background-color: var(--FormBG); }
+table.OddEven th { background-color: var(--MidColBG); }
+table.OddEven td { padding: 3px; }
+
+/* ---------- Blockquotes ---------- */
+
+BLOCKQUOTE.bq {
+  font-style: var(--QuoteFontStyle);
+  font-weight: var(--QuoteFontWeight);
+  color: var(--QTextColor);
+  background-color: var(--QTextBG);
+  margin-bottom: 0;
+}
+
+BLOCKQUOTE.bq P {
+  margin-top: 1em;
+  margin-bottom: 0;
+}
+
+BLOCKQUOTE.notice {
+  background-color: var(--FormBG);
+  padding: 10px;
+}
+
+/* ---------- Article Layout ---------- */
+
+DIV.ArticleText {
+  margin: 0;
+  padding: 0 2px 0 0.5em;
+  max-width: calc(var(--MaxTextWidth) * 1em);
+}
+
+DIV.BlurbListing {
+  padding-left: 6px;
+}
+
+DIV.ArticleText IMG.forcewhite { background-color: white; }
+
+IMG.photo { max-width: 100%; }
+
+/* ---------- Main Column Layout ---------- */
+
+.maincolumn .middlecolumn {
+  padding-left: calc((50% * 0) - (var(--MaxTextWidth) * 1em) / 2);
+}
+
+div.middlecolumn { flex: 5; }
+div.rightcol { padding-top: 5em; flex: 0 1 content; }
+
+div.flexcol {
+  display: flex;
+  flex-direction: column;
+}
+
+div.FPBox {
+  display: flex;
+  flex-direction: column;
+}
+
+div.FPLeft {
+  margin-right: 5px;
+  min-width: 45%;
+}
+
+div.FPRight {
+  min-width: 45%;
+}
+
+div.yaflex {
+  display: flex;
+  flex-direction: row;
+}
+
+div.yaflex span { flex-grow: 0; }
+div.yaflex span.grow {
+  flex-grow: 1;
+  text-align: center;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+/* ---------- Menu / Sidebar ---------- */
+
+#menu {
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--NewLeftColBG);
+  padding: 0 0.2em;
+  overflow-y: visible;
+  display: block;
+  z-index: 20;
+  height: 42px;
+}
+
+#menu.scrollable { position: absolute; }
+
+DIV.navmenu-container {
+  margin-left: 0.5em;
+  margin-top: 0.5em;
+  min-width: 70%;
+  border-radius: 0.8em;
+  padding: 0.1em;
+  display: inline-block;
+}
+
+ul.navmenu {
+  list-style: none;
+  position: relative;
+  display: inline-table;
+  padding: 0;
+  margin: 0;
+}
+
+.navmenu li {
+  display: inline-block;
+  margin-right: 0.4em;
+}
+
+.navmenu ul {
+  display: none;
+  position: absolute;
+  top: 100%;
+  width: 15em;
+  list-style: none;
+  z-index: 10;
+  background: var(--NewLeftColBG);
+  padding-left: 0;
+  margin-left: 0;
+  border-style: solid;
+}
+
+.navmenu ul li {
+  display: block;
+  margin-top: 0.2em;
+  margin-left: 0.2em;
+  line-height: max(1.4, 25px);
+}
+
+.navmenu ul li:first-child { margin-top: 1.2em; }
+.navmenu li:hover > ul { display: block; }
+
+.navmenu a { text-decoration: none; }
+.navmenu a:hover { text-decoration: underline; }
+.navmenu a:visited, .topnav-container a:visited { color: var(--LinkColor); }
+a.navmenu::after { content: " \25B6"; }
+
+span.logo, span.logobl, img.logo { display: none; }
+img.sslogo { float: left; }
+div.logo { float: left; }
+
+/* ---------- Top Nav ---------- */
+
+DIV.topnav-spacer { margin-top: 45px; }
+
+DIV.topnav-container {
+  margin-left: 0.5em;
+  margin-right: 0.5em;
+  background: var(--NewLeftColBG);
+  border-radius: 0.8em;
+  padding: 0.3em;
+}
+
+DIV.top-banner {
+  margin-left: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+/* ---------- Desktop (>=48em) Layout ---------- */
+
+@media screen and (min-width: 48em) {
+  .rightcol { flex: 0; min-width: 120px; }
+  .rightcol_wpage { display: none; }
+  .header, .content { padding-left: 2em; padding-right: 2em; }
+  div.maincolumn { padding-left: 10em; }
+  div.flexcol { flex-direction: row; }
+  div.topnav-spacer { margin: 0; }
+  div.top-banner { margin-left: 11em; }
+
+  #menu {
+    display: block;
+    width: 9.6em;
+    height: 100%;
+    bottom: 0;
+    overflow-y: visible;
+  }
+
+  #menu:hover { overflow-y: auto; }
+  #menu.scrollable { position: fixed; }
+
+  div.navmenu-container {
+    display: block;
+    margin-top: 120px;
+    margin-left: 0;
+    padding: 0;
+  }
+
+  .navmenu ul {
+    display: block;
+    position: static;
+    width: 9.6em;
+    border-style: none;
+    top: 0;
+  }
+
+  .navmenu li {
+    margin: 0.5em 0 0 0.1em;
+    width: 100%;
+  }
+
+  .navmenu ul li {
+    margin: 0.1em 0 0 0.5em;
+    text-indent: -0.4em;
+    padding-right: 0;
+    width: auto;
+    line-height: 1.2;
+  }
+
+  .navmenu ul li:first-child { margin-top: 0; }
+  a.navmenu::after { content: ""; }
+
+  DIV.topnav-container {
+    margin-left: 10.5em;
+    margin-top: 0.5em;
+  }
+
+  img.logo {
+    padding-right: 0.2em;
+    display: inline;
+    float: left;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+  }
+
+  span.logo {
+    font-weight: bold;
+    color: var(--LogoColor);
+    display: inline;
+    font-size: 180%;
+    text-align: right;
+    float: left;
+    padding-left: 60px;
+    font-family: sans-serif;
+    line-height: 0.8;
+    padding-top: 0.3em;
+  }
+
+  span.logobl {
+    color: var(--LogoColor);
+    display: inline;
+    font-size: 80%;
+    text-align: center;
+    position: absolute;
+    top: 85px;
+    left: 5px;
+    font-family: sans-serif;
+  }
+
+  img.sslogo { display: none; }
+  div.fp-feature { padding-right: 1em; }
+  div.FPBox { flex-direction: row; }
+  .handset-only { display: none; }
+  .not-handset { display: inline-block; }
+}
+
+/* ---------- Mobile (<48em) ---------- */
+
+@media (max-width: 48em) {
+  .handset-only { display: inline-block; }
+  .not-handset { display: none; }
+}
+
+/* ---------- Huge screens (>=80em) ---------- */
+
+.huge-only { display: none; }
+
+@media screen and (min-width: 80em) {
+  .huge-only { display: inline-block; }
+}
+
+@media screen and (min-width: 120em) {
+  .rightcol { max-width: 400px; }
+  .rightcol_wpage { display: inline-block; flex: 1; }
+}
+
+/* ---------- Print ---------- */
+
+@media print {
+  .not-print, .navmenu-container, .handset-only { display: none !important; }
+  #menu { position: absolute; }
+}
+
+/* ---------- Forms / Inputs ---------- */
+
+input, button {
+  background-color: var(--PageBG);
+  color: var(--TextColor);
+  padding: 3px;
+  border-radius: 0.5em;
+}
+
+input[type="submit"], button {
+  background-color: var(--ButtonColor);
+}
+
+input[type="submit"]:hover, button:hover {
+  background-color: var(--ButtonHoverColor);
+}
+
+button { font-weight: bold; }
+button:disabled { background-color: var(--FormBG); border-width: 1px; }
+
+form.loginform { display: inline; }
+
+/* ---------- Misc ---------- */
+
+P.Headlines {
+  margin-bottom: 6px;
+  text-indent: -1em;
+  margin-left: 1em;
+  margin-top: 0;
+}
+
+P.Feature {
+  text-indent: -1em;
+  margin-left: 1em;
+  margin-top: 0;
+  margin-bottom: 2px;
+}
+
+P.NextLink { text-align: right; }
+
+DIV.SideBox {
+  font-size: smaller;
+  margin: 1em 1px;
+}
+
+DIV.SideBox P {
+  text-indent: -1em;
+  margin: 0 0 1px 1em;
+}
+
+DIV.SideBox P.Header {
+  font-weight: bold;
+  text-indent: 0;
+  margin-left: 0;
+}
+
+ul.spacylist LI, DD { margin-bottom: 0.5em; }
+UL.NoBullet { list-style-type: none; }
+UL.tighter { margin-top: 0; margin-bottom: 0; }
+UL.tighter LI { margin-top: 2px; margin-bottom: 2px; }
+
+.spacylist LI, DD { margin-bottom: 0.5em; }
+
+br.clear { clear: both; }
+.align_left { padding: 3px 0 3px 3px; float: left; }
+.align_right { padding: 3px 0 3px 3px; float: right; }
+.valign_top { vertical-align: top; }
+.valign_middle { vertical-align: middle; }
+
+/* ---------- Markdown Content Styling ---------- */
+
+.markdown-body h1 { font-size: 1.6em; margin: 0.8em 0 0.4em; }
+.markdown-body h2 { font-size: 1.4em; margin: 0.8em 0 0.4em; }
+.markdown-body h3 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
+.markdown-body p { margin: 0.6em 0; line-height: 1.6; }
+.markdown-body ul, .markdown-body ol { margin: 0.6em 0; padding-left: 2em; }
+.markdown-body li { margin-bottom: 0.3em; }
+.markdown-body pre {
+  background-color: var(--FormBG);
+  padding: 0.8em;
+  border-radius: 0.5em;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.markdown-body code {
+  background-color: var(--TTBGColor);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.markdown-body pre code {
+  background-color: transparent;
+  padding: 0;
+}
+.markdown-body blockquote {
+  border-left: 4px solid var(--HeadlineBG);
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  color: var(--TextColor);
+}
+.markdown-body img { max-width: 100%; height: auto; }
+.markdown-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--FormBG);
+  padding: 6px 10px;
+  text-align: left;
+}
+.markdown-body th { background-color: var(--FormBG); font-weight: bold; }
+.markdown-body a { color: var(--LinkColor); }
+
+/* ---------- Article Meta / Tags ---------- */
+
+.article-meta {
+  font-size: small;
+  color: var(--VLinkColor);
+  margin-bottom: 1em;
+}
+
+.tag-badge {
+  display: inline-block;
+  background-color: var(--FormBG);
+  padding: 2px 8px;
+  border-radius: 0.5em;
+  font-size: small;
+  margin: 2px;
+  text-decoration: none;
+}
+
+.tag-badge:hover {
+  background-color: var(--HeadlineBG);
+}
+
+.category-badge {
+  background-color: var(--HeadlineBG);
+  padding: 1px 6px;
+  border-radius: 0.3em;
+  font-size: small;
+  font-weight: bold;
+}
+
+/* ---------- Search Results ---------- */
+
+.search-result {
+  margin-bottom: 1.5em;
+  padding-bottom: 1em;
+  border-bottom: 1px solid var(--FormBG);
+}
+
+.search-result h3 {
+  background-color: var(--HeadlineBG);
+  border-radius: 0.5em;
+  padding: 4px 8px;
+  font-size: larger;
+}
+
+/* ---------- Tag Cloud ---------- */
+
+.tag-cloud-item {
+  display: inline-block;
+  margin: 4px;
+}
+
+/* ---------- No Results ---------- */
+
+.no-results {
+  text-align: center;
+  padding: 2em;
+  color: var(--VLinkColor);
+  font-size: large;
+}
+
+/* ============================================================
+   首页专属：居中搜索区 + 简讯折叠
+   ============================================================ */
+
+.HomeTitle {
+  text-align: center;
+  font-size: 1.5em;
+  font-weight: bold;
+  margin: 0.6em 0 0.4em;
+  color: var(--TextColor);
+}
+
+/* LWN 风格的搜索面板 */
+.lwn-search-box {
+  background: var(--FormBG);
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 1em 1.2em;
+  margin: 0.8em 0 1.5em;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.lwn-search-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.7em;
+  gap: 0.6em;
+  flex-wrap: wrap;
+}
+.lwn-search-label {
+  min-width: 5em;
+  padding-top: 0.15em;
+}
+.lwn-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em 1em;
+  align-items: center;
+}
+.lwn-cats label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  white-space: nowrap;
+}
+.lwn-search-row input[type="text"] {
+  flex: 1;
+  min-width: 240px;
+  padding: 4px 6px;
+  border: 1px solid #999;
+  border-radius: 2px;
+  font-size: 1em;
+  font-family: var(--FontFamily), serif;
+  background: white;
+  color: black;
+}
+.lwn-search-btn {
+  padding: 4px 14px;
+  background: var(--ButtonColor);
+  border: 1px solid #b8860b;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 1em;
+}
+.lwn-search-btn:hover {
+  background: var(--ButtonHoverColor);
+}
+
+/* 简讯折叠区 */
+.briefs-toggle-wrap {
+  margin: 1.5em 0 0.5em;
+  border-top: 1px solid #ccc;
+  padding-top: 1em;
+}
+.briefs-toggle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.6em 0.8em;
+  background: var(--HeadlineBG);
+  border: 1px solid #cc9966;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: bold;
+  font-family: var(--FontFamily), serif;
+  color: var(--TextColor);
+}
+.briefs-toggle:hover {
+  background: var(--ButtonHoverColor);
+}
+.briefs-toggle:focus {
+  outline: 2px solid var(--LogoColor);
+}
+.briefs-panel {
+  margin-top: 0.6em;
+  padding: 0.4em 0;
+  border-left: 3px solid var(--HeadlineBG);
+  padding-left: 1em;
+}
+.FPLeft-wide {
+  width: 100%;
+}
+
+@media (max-width: 600px) {
+  .lwn-search-row {
+    flex-direction: column;
+  }
+  .lwn-search-label {
+    min-width: auto;
+  }
+}

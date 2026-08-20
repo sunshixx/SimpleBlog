@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写作 - OSS Notes</title>
+<link rel="stylesheet" href="css/lwn.css">
+<style>
+  .editor-page { max-width: 900px; margin: 0 auto; padding: 0.5em; }
+  .editor-form label { display:block; font-weight:bold; margin-top:0.8em; margin-bottom:0.3em; }
+  .editor-form input[type=text] {
+    width:100%; padding:6px; border:1px solid var(--FormBG);
+    border-radius:0.5em; font-size:medium; box-sizing:border-box;
+  }
+  .editor-form textarea {
+    width:100%; min-height:320px; padding:8px; border:1px solid var(--FormBG);
+    border-radius:0.5em; font-family:monospace; font-size:14px; box-sizing:border-box;
+  }
+  .row2 { display:flex; gap:1em; }
+  .row2 > div { flex:1; }
+  .editor-split { display:flex; gap:1em; margin-top:0.3em; }
+  .editor-split > div { flex:1; min-width:0; }
+  .preview-box {
+    border:1px solid var(--FormBG); border-radius:0.5em; padding:8px;
+    min-height:320px; overflow-y:auto; background:var(--MidColBG);
+  }
+  .preview-label { font-size:small; color:var(--VLinkColor); margin-bottom:4px; }
+  .btn-row { margin-top:1em; }
+  .btn {
+    background:var(--ButtonColor); border:none; border-radius:0.5em;
+    padding:8px 20px; font-size:medium; font-weight:bold; cursor:pointer;
+    margin-right:0.5em;
+  }
+  .btn:hover { background:var(--ButtonHoverColor); }
+  .btn.danger { background:#e84; color:#fff; }
+  .list-item {
+    padding:0.5em; border-bottom:1px solid var(--FormBG);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .list-item:hover { background:var(--FormBG); }
+  .list-item .act a { margin-left:0.5em; font-size:small; }
+  .login-box {
+    max-width:280px; margin:4em auto; text-align:center;
+    background:var(--NewLeftColBG); padding:2em; border-radius:1em;
+  }
+  .login-box input { width:100%; margin:0.4em 0; padding:8px; box-sizing:border-box; }
+  .msg { padding:0.5em; margin:0.5em 0; border-radius:0.5em; font-size:small; }
+  .msg.ok { background:#d4edda; color:#155724; }
+  .msg.err { background:#f8d7da; color:#721c24; }
+</style>
+</head>
+<body data-page="admin">
+<a name="t"></a>
+<script src="js/marked.min.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
