@@ -21,6 +21,9 @@ node server.js
 
 后台写作：`http://localhost:8080/admin.html`
 
+登陆页面如图所示：
+<img width="1920" height="827" alt="image" src="https://github.com/user-attachments/assets/1269771d-27bb-4f52-b398-5d5a56f7f49e" />
+
 ## 权限模型
 
 这是个人博客，没有统一用户系统：
