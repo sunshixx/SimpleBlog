@@ -8,11 +8,49 @@ if (typeof marked !== 'undefined') {
   marked.setOptions({ breaks: true, gfm: true });
 }
 
+// 重写 markdown 中的本地图片引用：picture/xxx.png → /picture/xxx.png
+// 支持两种写法：![alt](picture/x.png) 和 ![alt](./picture/x.png)
+// 已经是 /picture/... 的保持原样
+function rewritePicturePaths(md) {
+  if (!md) return md;
+  return md
+    // ![alt](picture/x.png)  或  ![alt](./picture/x.png)  →  !alt](/picture/x.png)
+    .replace(/!\[([^\]]*)\]\((\.?\/)?picture\/([^)]+)\)/g, '![$1](/picture/$3)')
+    // <img src="picture/x.png"> 或 <img src="./picture/x.png">
+    .replace(/(<img\s+[^>]*?src=["'])(\.?\/)?picture\/([^"']+)(["'][^>]*?>)/g, '$1/picture/$3$4');
+}
+
+// 渲染 markdown 中的数学公式（KaTeX）
+// 在 marked 解析后的 DOM 树里自动识别 $$..$$ 和 $..$ 并替换
+function renderMathIn(el) {
+  if (typeof window === 'undefined') return;
+  // 等 KaTeX 库加载完
+  const tryRender = () => {
+    if (typeof window.renderMathInElement === 'function') {
+      try {
+        window.renderMathInElement(el, {
+          delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '$',  right: '$',  display: false }
+          ],
+          throwOnError: false
+        });
+      } catch (e) { /* 静默 */ }
+    } else {
+      // KaTeX 还没加载完，50ms 后重试
+      setTimeout(tryRender, 50);
+    }
+  };
+  tryRender();
+}
+
 function renderMarkdown(md) {
-  if (typeof marked !== 'undefined') return marked.parse(md);
-  const esc = (md || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if (typeof marked !== 'undefined') return marked.parse(rewritePicturePaths(md));
+  const esc = rewriteMarkdownEscaped(md).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   return '<p>' + esc.replace(/\n\n/g, '</p><p>') + '</p>';
 }
+// 降级路径也走一遍路径重写（避免 marked 缺失时图片显示为外链）
+function rewriteMarkdownEscaped(md) { return rewritePicturePaths(md || ''); }
 
 /* ---------- API 调用 ---------- */
 async function fetchArticles() {
@@ -233,17 +271,17 @@ async function renderArticlePage() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id') || 1;
 
-  // 并发拉：单个文章（带 content）+ 列表（用于侧边栏分类）
+  // 并发拉：单篇 + 列表 + 评论
   let article = null;
   let allArticles = [];
+  let comments = [];
   try {
-    [article, allArticles] = await Promise.all([
+    [article, allArticles, comments] = await Promise.all([
       fetchArticle(id).catch(() => null),
-      fetchArticles().catch(() => [])
+      fetchArticles().catch(() => []),
+      fetchComments(id).catch(() => [])
     ]);
-  } catch (e) {
-    // 失败时 article 已经是 null, allArticles 已经是 []
-  }
+  } catch (e) { /* 失败时使用默认值 */ }
 
   if (!article || article.error) {
     renderLayout(`
@@ -274,11 +312,30 @@ async function renderArticlePage() {
       </div>
       <div class="markdown-body">${renderMarkdown(article.content)}</div>
       <a name="Comments"></a>
-      <h2 class="Headline">评论</h2>
-      <div class="BlurbListing">
-        <p>本文共有 ${article.comments} 条评论。</p>
-        <p><i>评论系统为演示用途，演示版不开放评论功能。</i></p>
+      <h2 class="Headline">评论 (${comments.length})</h2>
+      <div id="commentList" class="comment-list">
+        ${renderCommentList(comments)}
       </div>
+      <h3 class="Headline">发表评论</h3>
+      <form id="commentForm" class="comment-form" onsubmit="return submitComment(event, ${article.id});">
+        <table class="Form">
+          <tr>
+            <td><b>署名：</b></td>
+            <td><input type="text" name="author" size="30" maxlength="50" placeholder="你的名字（可留空用 anonymous）"></td>
+          </tr>
+          <tr>
+            <td valign="top"><b>内容：</b></td>
+            <td><textarea name="content" rows="5" cols="60" maxlength="5000" placeholder="说点什么...（支持简单换行）"></textarea></td>
+          </tr>
+          <tr>
+            <td></td>
+            <td>
+              <input type="submit" value="提交评论">
+              <span id="commentMsg" class="Smaller"></span>
+            </td>
+          </tr>
+        </table>
+      </form>
       <h2 class="Headline">标签</h2>
       <div class="BlurbListing">${tagsHTML}</div>
     </main></div>
@@ -288,7 +345,76 @@ async function renderArticlePage() {
   `;
   renderLayout(mainContent, [...new Set(allArticles.map(a => a.category))]);
   document.title = `${article.title} [OSS Notes]`;
+  // 渲染数学公式（KaTeX）
+  setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
 }
+
+/* ---------- 评论 ---------- */
+async function fetchComments(articleId) {
+  const res = await fetch('/api/articles/' + articleId + '/comments');
+  return res.json();
+}
+
+function renderCommentList(comments) {
+  if (!comments.length) {
+    return '<div class="BlurbListing"><p><i>暂无评论，欢迎抢沙发。</i></p></div>';
+  }
+  return comments.map(c => `
+    <div class="comment-item">
+      <div class="comment-head">
+        <b>${escapeHtml(c.author || 'anonymous')}</b>
+        <span class="Smaller">${formatDate(c.date, c.time, c.weekday)}</span>
+      </div>
+      <div class="comment-body">${formatCommentBody(c.content)}</div>
+    </div>
+  `).join('');
+}
+
+function formatCommentBody(text) {
+  // 简单换行 + 链接 + 防 XSS
+  const esc = escapeHtml(text || '');
+  return esc
+    .replace(/\r\n|\r|\n/g, '<br>')
+    .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" rel="nofollow">$1</a>');
+}
+
+window.submitComment = async function(e, articleId) {
+  e.preventDefault();
+  const form = e.target;
+  const author = (form.author.value || '').trim();
+  const content = (form.content.value || '').trim();
+  if (!content) {
+    document.getElementById('commentMsg').innerHTML = ' <i style="color:#a44">内容不能为空</i>';
+    return false;
+  }
+  const btn = form.querySelector('input[type=submit]');
+  btn.disabled = true; const oldText = btn.value; btn.value = '提交中...';
+  try {
+    const res = await fetch('/api/articles/' + articleId + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ author, content })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      // 重新拉评论列表刷新显示
+      const list = await fetchComments(articleId);
+      document.getElementById('commentList').innerHTML = renderCommentList(list);
+      // 更新标题旁的计数
+      const headH2 = document.querySelector('a[name="Comments"] + h2.Headline');
+      if (headH2) headH2.textContent = '评论 (' + list.length + ')';
+      form.reset();
+      document.getElementById('commentMsg').innerHTML = ' <i style="color:#393">已提交</i>';
+    } else {
+      document.getElementById('commentMsg').innerHTML = ' <i style="color:#a44">' + escapeHtml(data.error || '提交失败') + '</i>';
+    }
+  } catch (err) {
+    document.getElementById('commentMsg').innerHTML = ' <i style="color:#a44">' + escapeHtml(err.message) + '</i>';
+  } finally {
+    btn.disabled = false; btn.value = oldText;
+  }
+  return false;
+};
 
 /* ---------- 搜索页 ---------- */
 // 共享：从某个 form 收集 q + 选中的 cats，跳转到搜索页
@@ -350,11 +476,11 @@ async function renderSearchPage() {
         return `
           <div class="search-result">
             <h3 class="Headline">${subMark}<a href="article.html?id=${a.id}" style="color:inherit;text-decoration:none;">${highlightMatch(a.title, query)}</a></h3>
-            <div class="BlurbListing">
-              <span class="Smaller">[${a.category}] ${formatDate(a.date, a.time, a.weekday)} by ${a.author}</span>
-              <p>${highlightMatch(a.summary, query)}</p>
-              <a href="article.html?id=${a.id}">Full Story</a> (comments: ${a.comments})
+            <div class="Smaller" style="margin:0.2em 0 0.6em 0;color:var(--VLinkColor)">
+              [${a.category}] ${formatDate(a.date, a.time, a.weekday)} by ${a.author}${a.comments ? ' · <a href="article.html?id='+a.id+'#Comments" style="color:var(--VLinkColor)">评论 '+a.comments+'</a>' : ''}
             </div>
+            <p style="margin:0 0 0.4em 0">${highlightMatch(a.summary, query)}</p>
+            <a href="article.html?id=${a.id}">Full Story</a>
           </div>
         `;
       }).join('\n');
@@ -514,6 +640,8 @@ function renderAboutPage() {
 </div>
   `;
   renderLayout(mainContent);
+  // 渲染数学公式（KaTeX）
+  setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
 }
 
 /* ---------- 工具函数 ---------- */
@@ -561,3 +689,12 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+// bfcache 修复：浏览器后退（从 bfcache 恢复）时重新拉数据
+// 否则用户评论完返回文章页仍看到旧评论数
+window.addEventListener('pageshow', e => {
+  if (e.persisted) {
+    // 页面从 bfcache 恢复，重新执行当前页面的渲染逻辑
+    init();
+  }
+});

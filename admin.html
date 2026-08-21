@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>写作 - OSS Notes</title>
 <link rel="stylesheet" href="css/lwn.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <style>
   .editor-page { max-width: 900px; margin: 0 auto; padding: 0.5em; }
   .editor-form label { display:block; font-weight:bold; margin-top:0.8em; margin-bottom:0.3em; }
@@ -39,6 +40,25 @@
   }
   .list-item:hover { background:var(--FormBG); }
   .list-item .act a { margin-left:0.5em; font-size:small; }
+  /* 正在编辑的文章高亮 */
+  .list-item.editing {
+    background:var(--HeadlineBG);
+    border-left:3px solid var(--LinkColor);
+  }
+  .list-item.editing-dirty { border-left:3px solid #c33; }
+  /* 评论管理面板 */
+  .comment-mgr {
+    width:100%; margin-top:0.4em; padding:0.4em 0.6em;
+    background:var(--MidColBG); border:1px solid var(--FormBG); border-radius:0.4em;
+  }
+  .comment-mgr-item {
+    padding:0.3em 0; border-bottom:1px dashed var(--FormBG);
+  }
+  .comment-mgr-item:last-child { border-bottom:none; }
+  .comment-mgr-body {
+    color:var(--VLinkColor); font-size:small; white-space:pre-wrap;
+    margin-top:0.2em; margin-left:0.4em;
+  }
   .login-box {
     max-width:280px; margin:4em auto; text-align:center;
     background:var(--NewLeftColBG); padding:2em; border-radius:1em;
@@ -47,11 +67,25 @@
   .msg { padding:0.5em; margin:0.5em 0; border-radius:0.5em; font-size:small; }
   .msg.ok { background:#d4edda; color:#155724; }
   .msg.err { background:#f8d7da; color:#721c24; }
+  .msg.info { background:var(--FormBG); color:var(--VLinkColor); }
+
+  /* 插入图片工具条：朴素原生 form 风格，无桃色按钮 */
+  .insert-toolbar {
+    margin:0.4em 0; display:flex; flex-wrap:wrap; gap:0.4em;
+    align-items:center; font-size:small;
+  }
+  .insert-toolbar .Smaller code { background:var(--FormBG); padding:0 3px; border-radius:2px; }
+  .insert-toolbar input[type=text] {
+    width:120px; font-size:small; padding:2px 4px;
+    border:1px solid var(--FormBG);
+  }
 </style>
 </head>
 <body data-page="admin">
 <a name="t"></a>
 <script src="js/marked.min.js"></script>
 <script src="js/admin.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 </body>
 </html>

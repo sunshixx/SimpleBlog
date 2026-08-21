@@ -248,6 +248,12 @@ DIV.ArticleText {
 DIV.BlurbListing {
   padding-left: 6px;
 }
+DIV.search-result DIV.BlurbListing,
+DIV.search-result DIV.Headline,
+DIV.search-result {
+  padding-left: 0;
+  margin-left: 0;
+}
 
 DIV.ArticleText IMG.forcewhite { background-color: white; }
 

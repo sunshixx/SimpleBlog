@@ -1,11 +1,12 @@
 {
   "name": "oss-notes-blog",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "OSS Notes - Linux/Open Source blog with lwn.net design",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "seed": "node seed.js"
+    "seed": "node seed.js",
+    "migrate": "node migrate.js"
   },
   "dependencies": {}
 }
