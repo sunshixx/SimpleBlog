@@ -1,5 +1,5 @@
 /**
- * OSS Notes - Blog Server
+ * SUN Notes - Blog Server
  * 零依赖 Node.js 后端：文件系统数据层 + 图片库 + REST API
  *
  * 启动: node server.js
@@ -37,7 +37,6 @@ const ROOT = __dirname;
 const ARTICLES_DIR = path.join(ROOT, 'db', 'articles');
 const COMMENTS_DIR = path.join(ROOT, 'db', 'comments');
 const CONFIG_FILE = path.join(ROOT, 'db', 'config.json');
-const USERS_FILE = path.join(ROOT, 'db', 'users.json');
 const PICTURE_DIR = path.join(ROOT, 'picture');
 
 /* ============================================================
@@ -47,10 +46,14 @@ function loadConfig() {
   try {
     return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
   } catch (e) {
-    return { password: 'admin123' };
+    return { password: process.env.SUN_ADMIN_PASSWORD || 'admin123' };
   }
 }
-const CONFIG = loadConfig();
+const CONFIG = { ...loadConfig(), password: process.env.SUN_ADMIN_PASSWORD || loadConfig().password };
+const ADMIN_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+const ADMIN_TOKENS = new Map();
+const LOGIN_FAILURES = new Map();
+const COMMENT_RATE = new Map();
 
 /* ============================================================
    Frontmatter 解析（极简 YAML 子集，仅支持本站使用的字段）
@@ -148,16 +151,17 @@ function parseArticleFile(filePath, fileName) {
   // 标准化字段
   const article = {
     id: parseInt(meta.id, 10) || 0,
-    title: meta.title || '无标题',
+    title: String(meta.title || '无标题'),
     subscription: meta.subscription === true,
-    category: meta.category || 'Development',
-    author: meta.author || 'anonymous',
-    date: meta.date || '',
-    time: meta.time || '',
-    weekday: meta.weekday || '',
+    category: String(meta.category || 'Development'),
+    author: String(meta.author || 'anonymous'),
+    date: String(meta.date || ''),
+    time: String(meta.time || ''),
+    weekday: String(meta.weekday || ''),
+    updatedAt: String(meta.updatedAt || ((meta.date || '') + (meta.time ? ' ' + meta.time : ''))),
     comments: parseInt(meta.comments, 10) || 0,
-    tags: Array.isArray(meta.tags) ? meta.tags : (meta.tags ? [meta.tags] : []),
-    summary: meta.summary || '',
+    tags: Array.isArray(meta.tags) ? meta.tags.map(tag => String(tag)) : (meta.tags ? [String(meta.tags)] : []),
+    summary: String(meta.summary || ''),
     content: body.replace(/\s+$/, '')
   };
   return article;
@@ -189,6 +193,10 @@ function initDB() {
   console.log('  数据库已加载: ' + ARTICLES.length + ' 篇文章（来自 ' + files.length + ' 个文件）');
 }
 
+function refreshArticlesIndex() {
+  initDB();
+}
+
 function nextId() {
   return ARTICLES.reduce((m, a) => Math.max(m, a.id), 0) + 1;
 }
@@ -199,9 +207,9 @@ function nextId() {
 const DUP_WINDOW_MS = 10000;
 
 function makeFingerprint(title, author, content) {
-  const t = (title || '').trim();
-  const a = (author || '').trim();
-  const c = (content || '').trim().slice(0, 200);
+  const t = String(title || '').trim();
+  const a = String(author || '').trim();
+  const c = String(content || '').trim().slice(0, 200);
   return (t + '|' + a + '|' + c).toLowerCase();
 }
 
@@ -235,6 +243,7 @@ function buildFrontmatter(a) {
   lines.push('date: ' + yamlValue(a.date));
   lines.push('time: ' + yamlValue(a.time));
   lines.push('weekday: ' + yamlValue(a.weekday));
+  lines.push('updatedAt: ' + yamlValue(a.updatedAt || ''));
   lines.push('comments: ' + yamlValue(a.comments));
   lines.push('tags: ' + yamlValue(a.tags));
   lines.push('summary: ' + yamlValue(a.summary));
@@ -297,16 +306,17 @@ function createArticle(data) {
   }
   const article = {
     id: nextId(),
-    title: data.title || '无标题',
+    title: String(data.title || '无标题'),
     subscription: data.subscription === true || data.subscription === 'true',
-    category: data.category || 'Development',
-    author: data.author || 'anonymous',
-    date: data.date || now.toISOString().slice(0, 10),
-    time: data.time || now.toISOString().slice(11, 19) + ' UTC',
-    weekday: data.weekday || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()],
+    category: String(data.category || 'Development'),
+    author: String(data.author || 'anonymous'),
+    date: String(data.date || now.toISOString().slice(0, 10)),
+    time: String(data.time || now.toISOString().slice(11, 19) + ' UTC'),
+    weekday: String(data.weekday || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()]),
+    updatedAt: now.toISOString(),
     comments: 0,
-    tags: Array.isArray(data.tags) ? data.tags : [],
-    summary: data.summary || '',
+    tags: Array.isArray(data.tags) ? data.tags.map(tag => String(tag)) : [],
+    summary: String(data.summary || ''),
     content: archived.content
   };
   writeArticleFile(article);
@@ -329,10 +339,18 @@ function updateArticle(id, data) {
   }
   const updated = { ...ARTICLES[idx], ...data, id: parseInt(id) };
   // 标准化
+  updated.title = String(updated.title || '无标题');
+  updated.category = String(updated.category || 'Development');
+  updated.author = String(updated.author || 'anonymous');
+  updated.date = String(updated.date || '');
+  updated.time = String(updated.time || '');
+  updated.weekday = String(updated.weekday || '');
+  updated.updatedAt = new Date().toISOString();
   if (typeof updated.subscription === 'string') {
     updated.subscription = updated.subscription === 'true';
   }
-  if (!Array.isArray(updated.tags)) updated.tags = [];
+  updated.tags = Array.isArray(updated.tags) ? updated.tags.map(tag => String(tag)) : [];
+  updated.summary = String(updated.summary || '');
   writeArticleFile(updated);
   ARTICLES[idx] = updated;
   ARTICLES.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
@@ -372,7 +390,7 @@ function getTagIndex() {
 /* ============================================================
    图片库操作（picture/ 文件夹）
    ============================================================ */
-const PICTURE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp']);
+const PICTURE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const MAX_PIC_SIZE = 10 * 1024 * 1024; // 10MB
 
 function getPictureList(dir) {
@@ -417,6 +435,8 @@ function safeRelativeDir(rel) {
   if (!p || p === '..' || p.startsWith('../') || p.includes('/../') || p.includes('/..')) {
     return null;
   }
+  const first = p.split('/')[0].toLowerCase();
+  if (['db', '.git', 'js', 'css'].includes(first)) return null;
   const abs = path.join(ROOT, p);
   if (!abs.startsWith(ROOT)) return null;
   return abs;
@@ -435,6 +455,7 @@ function savePictureToDir(dirRel, fileName, buffer) {
   if (!safeName) throw new Error('文件名无效');
   const ext = path.extname(safeName).toLowerCase();
   if (!PICTURE_EXT.has(ext)) throw new Error('不支持的图片类型: ' + ext);
+  if (!isRealImage(ext, buffer)) throw new Error('文件内容不是有效图片');
   fs.mkdirSync(targetDir, { recursive: true });
   // 同名自动改名
   let finalName = safeName;
@@ -456,10 +477,24 @@ function savePictureToDir(dirRel, fileName, buffer) {
   };
 }
 
+function isRealImage(ext, buffer) {
+  if (ext === '.png') return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  if (ext === '.jpg' || ext === '.jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (ext === '.gif') return buffer.length >= 6 && (buffer.subarray(0, 6).toString() === 'GIF87a' || buffer.subarray(0, 6).toString() === 'GIF89a');
+  if (ext === '.webp') return buffer.length >= 12 && buffer.subarray(0, 4).toString() === 'RIFF' && buffer.subarray(8, 12).toString() === 'WEBP';
+  return false;
+}
+
+function pictureIsReferenced(name) {
+  const ref = 'picture/' + path.basename(name).replace(/\\/g, '/');
+  return ARTICLES.some(article => new RegExp('(?:\\(|")' + ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(article.content || ''));
+}
+
 function deletePicture(name) {
   const safeName = path.basename(name); // 防穿越
   const ext = path.extname(safeName).toLowerCase();
   if (!PICTURE_EXT.has(ext)) return false;
+  if (pictureIsReferenced(safeName)) return 'referenced';
   const file = path.join(PICTURE_DIR, safeName);
   if (!fs.existsSync(file)) return false;
   try {
@@ -550,123 +585,6 @@ function archivePicturesInContent(content) {
 }
 
 /* ============================================================
-   用户系统 — 注册 + 登录（普通用户），与管理员密码登录并存
-   - 密码用 Node 内置 crypto.scrypt 哈希（不引入 bcrypt）
-   - db/users.json 持久化普通用户
-   - Token 随机 32 字节 hex，内存索引 token → {userId, expiresAt}，TTL 7 天
-   - 旧管理员密码（CONFIG.password）保留，admin.html 用，未走用户 token
-   ============================================================ */
-const USER_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
-
-// 启动时从 db/users.json 加载普通用户
-let USERS = []; // [{id, username, passwordHash, salt, createdAt, displayName}, ...]
-let USER_TOKENS = new Map(); // token -> {userId, expiresAt}
-
-function loadUsers() {
-  if (!fs.existsSync(USERS_FILE)) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }, null, 2));
-  }
-  try {
-    const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-    USERS = (data.users || []).map(u => ({
-      id: u.id, username: u.username, passwordHash: u.passwordHash, salt: u.salt,
-      createdAt: u.createdAt, displayName: u.displayName || u.username
-    }));
-  } catch (e) {
-    USERS = [];
-  }
-  console.log('  用户索引已加载: ' + USERS.length + ' 个普通用户');
-}
-
-function saveUsers() {
-  fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
-  fs.writeFileSync(USERS_FILE, JSON.stringify({ users: USERS }, null, 2));
-}
-
-// 密码哈希：scrypt(密码, salt) → 比较
-function hashPassword(password, salt) {
-  return crypto.scryptSync(password, salt, 64).toString('hex');
-}
-
-function makeSalt() {
-  return crypto.randomBytes(16).toString('hex');
-}
-
-function createUser(username, password) {
-  if (!username || !password) return { error: '用户名和密码不能为空' };
-  username = String(username).trim();
-  if (username.length < 2 || username.length > 30) return { error: '用户名长度需在 2-30 之间' };
-  if (!/^[A-Za-z0-9_\-.]+$/.test(username)) return { error: '用户名只能包含字母、数字、下划线、短横线、点号' };
-  if (String(password).length < 4) return { error: '密码至少 4 位' };
-  if (String(password).length > 100) return { error: '密码过长（最多 100 位）' };
-  if (USERS.some(u => u.username.toLowerCase() === username.toLowerCase())) {
-    return { error: '该用户名已被注册' };
-  }
-  const salt = makeSalt();
-  const u = {
-    id: USERS.reduce((m, u) => Math.max(m, u.id), 0) + 1,
-    username,
-    passwordHash: hashPassword(password, salt),
-    salt,
-    createdAt: new Date().toISOString(),
-    displayName: username
-  };
-  USERS.push(u);
-  saveUsers();
-  return u;
-}
-
-function verifyPassword(user, password) {
-  const hash = hashPassword(password, user.salt);
-  // 时间常数比较（防止侧信道）
-  const a = Buffer.from(hash, 'hex');
-  const b = Buffer.from(user.passwordHash, 'hex');
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-function findUser(username) {
-  if (!username) return null;
-  const u = username.toLowerCase();
-  return USERS.find(x => x.username.toLowerCase() === u) || null;
-}
-
-function issueToken(userId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  USER_TOKENS.set(token, {
-    userId,
-    expiresAt: Date.now() + USER_TOKEN_TTL_MS
-  });
-  // 顺手清理过期 token
-  for (const [k, v] of USER_TOKENS) if (v.expiresAt < Date.now()) USER_TOKENS.delete(k);
-  return token;
-}
-
-function getAuthUser(req) {
-  const auth = req.headers['authorization'] || '';
-  const m = auth.match(/^Bearer\s+([A-Fa-f0-9]{64})$/);
-  if (!m) return null;
-  const tok = m[1];
-  const meta = USER_TOKENS.get(tok);
-  if (!meta) return null;
-  if (meta.expiresAt < Date.now()) { USER_TOKENS.delete(tok); return null; }
-  const u = USERS.find(x => x.id === meta.userId);
-  if (!u) return null;
-  // 返回时不带密码相关字段
-  return { id: u.id, username: u.username, displayName: u.displayName, createdAt: u.createdAt };
-}
-
-function revokeToken(req) {
-  const auth = req.headers['authorization'] || '';
-  const m = auth.match(/^Bearer\s+([A-Fa-f0-9]{64})$/);
-  if (m) USER_TOKENS.delete(m[1]);
-}
-
-function publicUser(u) {
-  return { id: u.id, username: u.username, displayName: u.displayName, createdAt: u.createdAt };
-}
-
-/* ============================================================
    评论数据层 — 每篇文章一个 db/comments/{articleId}.json
    评论 ID 全局自增（避免跨文章 ID 冲突）
    ============================================================ */
@@ -720,8 +638,9 @@ function initComments() {
   console.log('  评论索引已加载: ' + COMMENTS_INDEX.size + ' 个文章有评论');
 }
 
-function getComments(articleId) {
-  return COMMENTS_INDEX.get(parseInt(articleId)) || [];
+function getComments(articleId, includeHidden) {
+  const list = COMMENTS_INDEX.get(parseInt(articleId)) || [];
+  return includeHidden ? list : list.filter(c => !c.hidden);
 }
 
 function addComment(articleId, data) {
@@ -735,6 +654,7 @@ function addComment(articleId, data) {
     id: CURRENT_COMMENT_ID++,
     author: (data.author || 'anonymous').toString().slice(0, 50),
     content,
+    hidden: false,
     date: data.date || now.toISOString().slice(0, 10),
     time: data.time || now.toISOString().slice(11, 19) + ' UTC',
     weekday: data.weekday || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()]
@@ -745,6 +665,21 @@ function addComment(articleId, data) {
   COMMENTS_INDEX.set(aid, list);
   writeCommentsFile(aid, { comments: list });
   return c;
+}
+
+function commentAllowed(req, articleId, content) {
+  const ip = clientAddress(req);
+  const now = Date.now();
+  const item = COMMENT_RATE.get(ip) || { times: [], fingerprints: new Map() };
+  item.times = item.times.filter(t => now - t < 60 * 1000);
+  if (item.times.length >= 5) return '评论过于频繁，请稍后再试';
+  const fp = crypto.createHash('sha256').update(String(articleId) + '|' + content).digest('hex');
+  const previous = item.fingerprints.get(fp) || 0;
+  if (now - previous < 5 * 60 * 1000) return '请勿重复提交相同评论';
+  item.times.push(now);
+  item.fingerprints.set(fp, now);
+  COMMENT_RATE.set(ip, item);
+  return null;
 }
 
 function deleteComment(articleId, commentId) {
@@ -822,7 +757,35 @@ function readJSONBody(req) {
 
 function checkAuth(req) {
   const auth = req.headers['authorization'] || '';
-  return auth === 'Bearer ' + CONFIG.password;
+  const token = auth.replace(/^Bearer\s+/, '');
+  const meta = ADMIN_TOKENS.get(token);
+  if (!meta || meta.expiresAt < Date.now()) {
+    if (meta) ADMIN_TOKENS.delete(token);
+    return false;
+  }
+  return req.headers['x-sun-admin'] === '1';
+}
+
+function clientAddress(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+}
+
+function issueAdminToken() {
+  const token = crypto.randomBytes(32).toString('hex');
+  ADMIN_TOKENS.set(token, { expiresAt: Date.now() + ADMIN_TOKEN_TTL_MS });
+  return token;
+}
+
+function loginBlocked(ip) {
+  const item = LOGIN_FAILURES.get(ip);
+  return item && item.blockedUntil > Date.now();
+}
+
+function recordLoginFailure(ip) {
+  const item = LOGIN_FAILURES.get(ip) || { count: 0, blockedUntil: 0 };
+  item.count++;
+  if (item.count >= 5) { item.count = 0; item.blockedUntil = Date.now() + 5 * 60 * 1000; }
+  LOGIN_FAILURES.set(ip, item);
 }
 
 function getBoundary(req) {
@@ -837,28 +800,36 @@ function getBoundary(req) {
 async function handleAPI(req, res, pathname, method, urlObj) {
   // ---- 文章 ----
   if (pathname === '/api/articles' && method === 'GET') {
+    refreshArticlesIndex();
     return sendJSON(res, 200, getArticles());
   }
 
   const articleMatch = pathname.match(/^\/api\/articles\/(\d+)$/);
   if (articleMatch && method === 'GET') {
+    refreshArticlesIndex();
     const article = getArticleById(articleMatch[1]);
     if (article) return sendJSON(res, 200, article);
     return sendJSON(res, 404, { error: '文章不存在' });
   }
 
   if (pathname === '/api/tags' && method === 'GET') {
+    refreshArticlesIndex();
     return sendJSON(res, 200, getTagIndex());
   }
 
   // ---- 评论 ----
   const commentsList = pathname.match(/^\/api\/articles\/(\d+)\/comments$/);
   if (commentsList && method === 'GET') {
-    return sendJSON(res, 200, getComments(commentsList[1]));
+    const manage = urlObj.searchParams.get('manage') === '1';
+    if (manage && !checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
+    return sendJSON(res, 200, getComments(commentsList[1], manage));
   }
   if (commentsList && method === 'POST') {
     // 公开接口，不需要认证（任何人都能评论）
     const body = await readJSONBody(req);
+    const content = String(body.content || '').slice(0, 5000);
+    const rateError = commentAllowed(req, commentsList[1], content);
+    if (rateError) return sendJSON(res, 429, { error: rateError });
     const result = addComment(commentsList[1], body);
     if (result === null) return sendJSON(res, 404, { error: '文章不存在' });
     if (result.error) return sendJSON(res, 400, result);
@@ -873,48 +844,34 @@ async function handleAPI(req, res, pathname, method, urlObj) {
     return sendJSON(res, 404, { error: '评论不存在' });
   }
 
+  const commentToggle = pathname.match(/^\/api\/articles\/(\d+)\/comments\/(\d+)\/hidden$/);
+  if (commentToggle && method === 'PUT') {
+    if (!checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
+    const list = getComments(commentToggle[1], true);
+    const comment = list.find(c => c.id === parseInt(commentToggle[2]));
+    if (!comment) return sendJSON(res, 404, { error: '评论不存在' });
+    const body = await readJSONBody(req);
+    comment.hidden = body.hidden === true;
+    writeCommentsFile(commentToggle[1], { comments: list });
+    return sendJSON(res, 200, comment);
+  }
+
   if (pathname === '/api/login' && method === 'POST') {
+    const ip = clientAddress(req);
+    if (loginBlocked(ip)) return sendJSON(res, 429, { error: '登录尝试过多，请 5 分钟后再试' });
     const body = await readJSONBody(req);
     if (body.password === CONFIG.password) {
-      return sendJSON(res, 200, { token: CONFIG.password, ok: true });
+      LOGIN_FAILURES.delete(ip);
+      return sendJSON(res, 200, { token: issueAdminToken(), ok: true });
     }
+    recordLoginFailure(ip);
     return sendJSON(res, 401, { error: '密码错误' });
   }
 
-  // ---- 用户（普通读者注册/登录，与管理员密码登录并存） ----
-  if (pathname === '/api/users/register' && method === 'POST') {
-    const body = await readJSONBody(req);
-    const u = createUser(body.username, body.password);
-    if (u.error) return sendJSON(res, 400, { error: u.error });
-    const token = issueToken(u.id);
-    return sendJSON(res, 201, { ok: true, token, user: publicUser(u) });
-  }
-
-  if (pathname === '/api/users/login' && method === 'POST') {
-    const body = await readJSONBody(req);
-    const u = findUser(body.username);
-    if (!u) return sendJSON(res, 401, { error: '用户名或密码错误' });
-    if (!verifyPassword(u, String(body.password || ''))) {
-      return sendJSON(res, 401, { error: '用户名或密码错误' });
-    }
-    const token = issueToken(u.id);
-    return sendJSON(res, 200, { ok: true, token, user: publicUser(u) });
-  }
-
-  if (pathname === '/api/users/me' && method === 'GET') {
-    const u = getAuthUser(req);
-    if (!u) return sendJSON(res, 401, { error: '未登录或 token 已失效' });
-    return sendJSON(res, 200, { user: u });
-  }
-
-  if (pathname === '/api/users/logout' && method === 'POST') {
-    revokeToken(req);
+  if (pathname === '/api/logout' && method === 'POST') {
+    const token = (req.headers['authorization'] || '').replace(/^Bearer\s+/, '');
+    ADMIN_TOKENS.delete(token);
     return sendJSON(res, 200, { ok: true });
-  }
-
-  // ---- 用户资料（公开：列出用户名，用于评论显示） ----
-  if (pathname === '/api/users' && method === 'GET') {
-    return sendJSON(res, 200, { users: USERS.map(publicUser) });
   }
 
   // 写操作（需要认证）
@@ -981,6 +938,7 @@ async function handleAPI(req, res, pathname, method, urlObj) {
   if (picMatch && method === 'DELETE') {
     if (!checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
     const ok = deletePicture(decodeURIComponent(picMatch[1]));
+    if (ok === 'referenced') return sendJSON(res, 409, { error: '图片仍被文章引用，不能删除' });
     if (ok) return sendJSON(res, 200, { ok: true });
     return sendJSON(res, 404, { error: '图片不存在' });
   }
@@ -1033,8 +991,7 @@ function parseMultipart(buf, boundary) {
    ============================================================ */
 const STATIC_WHITELIST_HTML = new Set([
   '/', '/index.html', '/about.html', '/article.html',
-  '/search.html', '/tags.html', '/admin.html',
-  '/login.html', '/register.html'
+  '/search.html', '/tags.html', '/admin.html'
 ]);
 const STATIC_WHITELIST_PREFIX = ['/css/', '/js/', '/picture/'];
 
@@ -1071,7 +1028,6 @@ function serveStatic(req, res, pathname) {
    ============================================================ */
 initDB();
 initComments();
-loadUsers();
 
 const server = http.createServer(async (req, res) => {
   try {
@@ -1079,9 +1035,8 @@ const server = http.createServer(async (req, res) => {
     const pathname = decodeURIComponent(urlObj.pathname);
     const method = req.method;
 
-    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-SUN-Admin');
     if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     if (pathname.startsWith('/api/')) {
@@ -1099,11 +1054,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  OSS Notes 博客服务器已启动`);
+  console.log(`\n  SUN Notes 博客服务器已启动`);
   console.log(`  ────────────────────────────`);
   console.log(`  浏览: http://localhost:${PORT}`);
   console.log(`  写作: http://localhost:${PORT}/admin.html`);
-  console.log(`  密码: ${CONFIG.password}`);
   console.log(`  数据: db/articles/*.md  (${ARTICLES.length} 篇)`);
   console.log(`  图片: ${getPictureList().length} 张 (picture/)`);
   console.log(`  ────────────────────────────\n`);

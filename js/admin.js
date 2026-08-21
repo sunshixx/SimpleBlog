@@ -1,5 +1,5 @@
 /**
- * OSS Notes 写作入口 — 精简版
+ * SUN Notes 写作入口 — 精简版
  * 右上角按钮进来，选分类写正文，存数据库
  */
 
@@ -15,8 +15,8 @@ async function login(pwd) {
   if (d.ok) { TOKEN=d.token; localStorage.setItem('oss_token',TOKEN); return true; }
   return false;
 }
-const authH = () => ({'Content-Type':'application/json','Authorization':'Bearer '+TOKEN});
-const authHNoCT = () => ({'Authorization':'Bearer '+TOKEN});
+const authH = () => ({'Content-Type':'application/json','Authorization':'Bearer '+TOKEN,'X-SUN-Admin':'1'});
+const authHNoCT = () => ({'Authorization':'Bearer '+TOKEN,'X-SUN-Admin':'1'});
 
 /* ---------- API ---------- */
 // 全局 fetch 包装：401 时跳回登录
@@ -41,7 +41,7 @@ const api = {
   picUpload: fd => authedFetch('/api/pictures',{method:'POST',headers:authHNoCT(),body:fd}).then(r=>r.json()),
   picDel:    name => authedFetch('/api/pictures/'+encodeURIComponent(name),{method:'DELETE',headers:authH()}).then(r=>r.json()),
   // 评论管理
-  commentList:  aid => fetch('/api/articles/'+aid+'/comments').then(r=>r.json()),
+  commentList:  aid => authedFetch('/api/articles/'+aid+'/comments?manage=1',{headers:authHNoCT()}).then(r=>r.json()),
   commentDel:   (aid,cid) => authedFetch('/api/articles/'+aid+'/comments/'+cid,{method:'DELETE',headers:authH()}).then(r=>r.json())
 };
 
@@ -49,7 +49,7 @@ const api = {
 function shell(inner) {
   document.body.innerHTML = `
 <div id="menu">
-  <a href="index.html"><span class="logo">OSS<br>.Notes</span></a>
+  <a href="index.html"><img class="logo" src="css/logo.jpg" alt="SUN Notes"><span class="logo">SUN<br>.Notes</span></a>
   <div class="navmenu-container"><ul class="navmenu">
     <li><a class="navmenu" href="admin.html"><b>写作</b></a></li>
   </ul></div>
@@ -60,9 +60,9 @@ function shell(inner) {
   <a href="#" id="logout"><b>退出</b></a>
 </div>
 ${inner}
-<br clear="all"><center><span class="ReallySmall">OSS Notes · 写作入口</span></center>`;
+<br clear="all"><center><span class="ReallySmall">SUN Notes · 写作入口</span></center>`;
   const lo = document.getElementById('logout');
-  if (lo) lo.addEventListener('click', e=>{e.preventDefault();TOKEN='';localStorage.removeItem('oss_token');location.reload();});
+  if (lo) lo.addEventListener('click', async e=>{e.preventDefault();try{await fetch('/api/logout',{method:'POST',headers:authHNoCT()});}catch(err){} TOKEN='';localStorage.removeItem('oss_token');window.location.href='index.html';});
 }
 
 /* ---------- 登录页 ---------- */
@@ -82,7 +82,7 @@ function showLogin() {
 </div></div>
   `);
   document.getElementById('go').addEventListener('click', async ()=>{
-    if (await login(document.getElementById('pwd').value)) location.reload();
+    if (await login(document.getElementById('pwd').value)) await showEditor();
     else document.getElementById('emsg').innerHTML='<div class="msg err">密码错误</div>';
   });
 }
@@ -139,8 +139,11 @@ async function showEditor() {
       </div>
       <div class="editor-split">
         <div>
-          <div class="preview-label">编辑器</div>
-          <textarea id="content" placeholder="在此输入 Markdown 正文... 可直接 Ctrl+V 粘贴图片，Ctrl+Enter 发布"></textarea>
+          <div class="preview-label">编辑器（输入 Markdown 符号或代码字符可补全，Ctrl+Space 可打开全部提示）</div>
+          <div class="autocomplete-wrap">
+            <textarea id="content" placeholder="在此输入 Markdown 正文... 可直接 Ctrl+V 粘贴图片，Ctrl+Enter 发布"></textarea>
+            <div id="autocompleteList" class="autocomplete-list" role="listbox"></div>
+          </div>
         </div>
         <div>
           <div class="preview-label">实时预览</div>
@@ -151,12 +154,16 @@ async function showEditor() {
       <input type="hidden" id="editId" value="">
       <div class="btn-row">
         <button class="btn" id="publish">发布文章</button>
+        <button class="btn" id="saveDraft" type="button">保存草稿</button>
+        <button class="btn" id="previewArticle" type="button">预览文章</button>
         <button class="btn" id="clear">清空</button>
-        <span id="saved"></span>
+        <span id="saved" class="Smaller"></span>
       </div>
     </div>
 
-    <h2 class="Headline" style="margin-top:2em;">已发布文章</h2>
+    <h2 class="Headline draft-heading" style="margin-top:2em;">待发布草稿</h2>
+    <div id="draftList"></div>
+    <h2 id="publishedHeading" class="Headline" style="margin-top:2em;">已发布文章</h2>
     <div id="alist"></div>
 
   </div>
@@ -166,6 +173,7 @@ async function showEditor() {
   // 实时预览（含数学公式）
   const ta = document.getElementById('content');
   const pv = document.getElementById('preview');
+  setupAutocomplete(ta);
   const renderPreview = () => {
     // 编辑器内预览也走一遍 picture 路径重写（与正文页一致）
     const md = ta.value || '*预览区为空*';
@@ -198,22 +206,307 @@ async function showEditor() {
 
   // 发布
   document.getElementById('publish').addEventListener('click', doPublish);
+  document.getElementById('saveDraft').addEventListener('click', saveDraft);
+  document.getElementById('previewArticle').addEventListener('click', previewArticle);
   document.getElementById('clear').addEventListener('click', clearForm);
 
   // 未保存修改提示 + 自动 resize + Ctrl+Enter 发布 + 作者记忆
   setupFormGuards(ta);
+  restoreRecoveryDraft();
 
   await loadList();
+}
+
+const DRAFTS_KEY = 'sun_notes_drafts';
+const RECOVERY_KEY = 'sun_notes_recovery';
+let activeDraftId = '';
+
+function formDataForDraft() {
+  return {
+    articleId: document.getElementById('editId').value || '',
+    title: document.getElementById('title').value,
+    category: document.getElementById('category').value,
+    author: document.getElementById('author').value,
+    subscription: document.getElementById('subscription').value,
+    tags: document.getElementById('tags').value,
+    summary: document.getElementById('summary').value,
+    content: document.getElementById('content').value,
+    savedAt: new Date().toISOString()
+  };
+}
+
+function readDrafts() {
+  try { return JSON.parse(localStorage.getItem(DRAFTS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+
+function writeDrafts(drafts) {
+  localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
+}
+
+function saveDraft(showMessage) {
+  try {
+    if (draftTimer) {
+      clearTimeout(draftTimer);
+      draftTimer = null;
+    }
+    const draft = formDataForDraft();
+    draft.id = document.getElementById('editId').value || activeDraftId || ('draft-' + Date.now());
+    const drafts = readDrafts().filter(item => item.id !== draft.id);
+    drafts.unshift(draft);
+    writeDrafts(drafts.slice(0, 20));
+    clearRecoveryDraft();
+    const saved = document.getElementById('saved');
+    if (saved) saved.textContent = '草稿已保存 ' + new Date().toLocaleTimeString();
+    flash('草稿已保存，已放入下方“待发布草稿”列表', 'ok');
+    loadList();
+  } catch (e) {
+    if (showMessage !== false) flash('草稿保存失败：' + e.message, 'err');
+  }
+}
+
+function saveRecoveryDraft() {
+  try { localStorage.setItem(RECOVERY_KEY, JSON.stringify(formDataForDraft())); } catch (e) {}
+}
+
+function restoreRecoveryDraft() {
+  try {
+    const raw = localStorage.getItem(RECOVERY_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (!draft.content && !draft.title) return;
+    if (!confirm('发现未保存的编辑内容（' + new Date(draft.savedAt).toLocaleString() + '），是否恢复？')) {
+      clearRecoveryDraft();
+      return;
+    }
+    ['title','category','author','subscription','tags','summary','content'].forEach(name => {
+      if (draft[name] !== undefined) document.getElementById(name).value = draft[name];
+    });
+    document.getElementById('editId').value = draft.articleId || '';
+    document.getElementById('publish').textContent = draft.articleId ? '更新文章 #' + draft.articleId : '发布文章';
+    document.getElementById('content').dispatchEvent(new Event('input'));
+    markDirty(true);
+    clearRecoveryDraft();
+  } catch (e) { clearRecoveryDraft(); }
+}
+
+function clearRecoveryDraft() {
+  try { localStorage.removeItem(RECOVERY_KEY); } catch (e) {}
+}
+
+function deleteDraft(id) {
+  writeDrafts(readDrafts().filter(item => item.id !== id));
+  loadList();
+}
+
+function loadDraft(id) {
+  const draft = readDrafts().find(item => item.id === id);
+  if (!draft) return;
+  // 兼容旧版本：旧草稿若使用文章数字 ID，视为该文章的更新草稿。
+  const articleId = draft.articleId || (/^\d+$/.test(String(draft.id)) ? String(draft.id) : '');
+  ['title','category','author','subscription','tags','summary','content'].forEach(name => {
+    if (draft[name] !== undefined) document.getElementById(name).value = draft[name];
+  });
+  document.getElementById('editId').value = articleId;
+  activeDraftId = id;
+  document.getElementById('publish').textContent = articleId ? '更新文章 #' + articleId : '发布文章';
+  document.getElementById('content').dispatchEvent(new Event('input'));
+  markDirty(false);
+  flash('正在编辑待发布草稿', 'ok');
+  window.scrollTo(0, 0);
+}
+
+function previewArticle() {
+  const title = document.getElementById('title').value.trim() || '未命名文章';
+  const preview = document.getElementById('preview').innerHTML;
+  const win = window.open('', '_blank');
+  if (!win) { flash('预览窗口被浏览器拦截，请允许弹窗', 'err'); return; }
+  win.document.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + ' - SUN Notes 预览</title><link rel="stylesheet" href="css/lwn.css"><main style="max-width:900px;margin:2em auto;padding:1em"><h1>' + esc(title) + '</h1><div class="markdown-body">' + preview + '</div></main>');
+  win.document.close();
+}
+
+function setupAutocomplete(ta) {
+  const list = document.getElementById('autocompleteList');
+  if (!ta || !list) return;
+  const cSuggestions = [
+    '#include <stdio.h>', '#include <stdlib.h>', '#include <string.h>',
+    '#include <stdint.h>', '#include <stdbool.h>', '#include <stddef.h>',
+    '#include <errno.h>', '#include <assert.h>',
+    'int ', 'long ', 'size_t ', 'ssize_t ', 'uint32_t ', 'uint64_t ',
+    'char *', 'const char *', 'struct ', 'typedef struct {\n    \n} ',
+    'enum ', 'static ', 'static inline ', 'const ', 'volatile ',
+    'NULL', 'true', 'false', 'EXIT_SUCCESS', 'EXIT_FAILURE',
+    'int main(int argc, char **argv) {\n    \n    return EXIT_SUCCESS;\n}',
+    'if (condition) {\n    \n}', 'if (ptr == NULL) {\n    \n}',
+    'else if (condition) {\n    \n}', 'else {\n    \n}',
+    'for (size_t i = 0; i < count; i++) {\n    \n}',
+    'while (condition) {\n    \n}', 'switch (value) {\n    case 0:\n        break;\n    default:\n        break;\n}',
+    'return ', 'break;', 'continue;',
+    'printf("%s\\n", value);', 'fprintf(stderr, "error: %s\\n", message);',
+    'snprintf(buffer, sizeof buffer, "%s", value);', 'scanf("%d", &value);',
+    'fgets(buffer, sizeof buffer, stdin);',
+    'malloc(count * sizeof *ptr)', 'calloc(count, sizeof *ptr)',
+    'realloc(ptr, count * sizeof *ptr)', 'free(ptr);',
+    'memcpy(destination, source, size);', 'memset(buffer, 0, sizeof buffer);',
+    'strlen(text)', 'strcmp(left, right)', 'strncpy(destination, source, size);',
+    'FILE *file = fopen(path, "r");', 'fclose(file);',
+    'fread(buffer, 1, size, file)', 'fwrite(buffer, 1, size, file)',
+    'perror("operation");', 'errno', 'assert(condition);'
+  ];
+  const cHeaderSuggestions = [
+    'stdio.h>', 'stdlib.h>', 'string.h>', 'stdint.h>', 'stdbool.h>',
+    'stddef.h>', 'errno.h>', 'assert.h>', 'time.h>', 'math.h>', 'ctype.h>'
+  ];
+  const codeSuggestions = {
+    javascript: ['const ', 'let ', 'function ', 'return ', 'if () {\n  \n}', 'for (const item of items) {\n  \n}', 'console.log()'],
+    js: ['const ', 'let ', 'function ', 'return ', 'if () {\n  \n}', 'for (const item of items) {\n  \n}', 'console.log()'],
+    python: ['def ', 'class ', 'return ', 'if __name__ == "__main__":', 'for item in items:', 'import ', 'print()'],
+    py: ['def ', 'class ', 'return ', 'if __name__ == "__main__":', 'for item in items:', 'import ', 'print()'],
+    go: ['package main', 'func main() {\n\t\n}', 'func ', 'type ', 'return ', 'if err != nil {\n\t\n}'],
+    rust: ['fn main() {\n    \n}', 'let ', 'pub fn ', 'struct ', 'impl ', 'match '],
+    c: cSuggestions,
+    cpp: ['#include <iostream>', '#include <vector>', 'int main() {\n    \n    return 0;\n}', 'std::string ', 'std::vector< > ', 'class ', 'if () {\n    \n}', 'for (const auto& item : items) {\n    \n}', 'std::cout << value << std::endl;'],
+    'c++': ['#include <iostream>', '#include <vector>', 'int main() {\n    \n    return 0;\n}', 'std::string ', 'std::vector< > ', 'class ', 'if () {\n    \n}', 'for (const auto& item : items) {\n    \n}', 'std::cout << value << std::endl;'],
+    sql: ['SELECT ', 'INSERT INTO ', 'UPDATE ', 'DELETE FROM ', 'CREATE TABLE ', 'WHERE ', 'ORDER BY '],
+    bash: ['#!/usr/bin/env bash', 'echo ', 'if [  ]; then\n  \nfi', 'for item in "${items[@]}"; do\n  \ndone'],
+    shell: ['#!/usr/bin/env bash', 'echo ', 'if [  ]; then\n  \nfi', 'for item in "${items[@]}"; do\n  \ndone']
+  };
+  const markdownSuggestions = ['# ', '## ', '### ', '- ', '1. ', '> ', '**粗体**', '*斜体*', '[链接文字](https://)', '![图片说明](picture/)', '```javascript\n\n```', '---'];
+  let suggestions = [];
+  let selected = 0;
+  let replaceStart = 0;
+
+  function codeLanguage(text, position) {
+    const before = text.slice(0, position);
+    const fences = before.match(/```/g) || [];
+    if (!fences.length || fences.length % 2 === 0) return '';
+    const matches = [...before.matchAll(/```([^\n`]*)\n?/g)];
+    return matches.length ? matches[matches.length - 1][1].trim().toLowerCase() : '';
+  }
+
+  function findSuggestions(force) {
+    const position = ta.selectionStart;
+    const text = ta.value;
+    const lineStart = text.lastIndexOf('\n', position - 1) + 1;
+    const line = text.slice(lineStart, position);
+    const language = codeLanguage(text, position);
+    const word = (line.match(/[A-Za-z_][\w-]*$/) || [''])[0];
+    replaceStart = position - word.length;
+    if (language) {
+      // 代码块内必须先输入至少一个关键词字符，再显示候选项。
+      if (!word.length) return [];
+      let candidates = codeSuggestions[language] || [];
+      if (language === 'c' && /#include\s*<[^>]*$/i.test(line)) {
+        candidates = cHeaderSuggestions;
+      }
+      return candidates.filter(item =>
+        item.toLowerCase().startsWith(word.toLowerCase())
+      );
+    }
+    if (/^\s*(#{1,6}|[-*+]|>|`|!|\[)\s*$/.test(line)) {
+      replaceStart = lineStart;
+      const matches = markdownSuggestions.filter(item => item.trimStart().startsWith(line.trim()));
+      return matches.length && (line.trim().length > 0 || force) ? matches : [];
+    }
+    return [];
+  }
+
+  function hide() {
+    suggestions = [];
+    list.classList.remove('visible');
+    list.innerHTML = '';
+  }
+
+  function insert(index) {
+    const value = suggestions[index];
+    if (value === undefined) return;
+    const position = ta.selectionStart;
+    ta.value = ta.value.slice(0, replaceStart) + value + ta.value.slice(position);
+    const next = replaceStart + value.length;
+    ta.focus();
+    ta.setSelectionRange(next, next);
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    hide();
+  }
+
+  function render() {
+    list.innerHTML = suggestions.map((item, index) =>
+      '<div class="autocomplete-item ' + (index === selected ? 'active' : '') + '" role="option">'
+      + esc(item).replace(/\n/g, '&#8629;') + '</div>'
+    ).join('');
+    list.classList.toggle('visible', suggestions.length > 0);
+    if (suggestions.length) positionAtCaret();
+    list.querySelectorAll('.autocomplete-item').forEach((item, index) => {
+      item.addEventListener('mousedown', event => { event.preventDefault(); insert(index); });
+    });
+  }
+
+  function positionAtCaret() {
+    const position = ta.selectionStart;
+    const mirror = document.createElement('div');
+    const style = getComputedStyle(ta);
+    const textareaRect = ta.getBoundingClientRect();
+    mirror.style.cssText = [
+      'position:fixed', 'visibility:hidden', 'white-space:pre-wrap', 'word-wrap:break-word',
+      'overflow-wrap:break-word', 'box-sizing:border-box',
+      'left:' + (textareaRect.left - ta.scrollLeft) + 'px',
+      'top:' + (textareaRect.top - ta.scrollTop) + 'px',
+      'width:' + ta.clientWidth + 'px', 'font:' + style.font,
+      'line-height:' + style.lineHeight, 'letter-spacing:' + style.letterSpacing,
+      'padding:' + style.padding, 'border:' + style.border
+    ].join(';');
+    const before = ta.value.slice(0, position);
+    mirror.innerHTML = esc(before).replace(/\n/g, '<br>') + '<span id="caretMarker">&#8203;</span>';
+    document.body.appendChild(mirror);
+    const marker = mirror.querySelector('#caretMarker').getBoundingClientRect();
+    mirror.remove();
+    const left = Math.max(8, Math.min(window.innerWidth - 220, marker.left));
+    const top = Math.max(8, Math.min(window.innerHeight - 190, marker.bottom + 2));
+    list.style.position = 'fixed';
+    list.style.left = left + 'px';
+    list.style.top = top + 'px';
+    list.style.bottom = 'auto';
+  }
+
+  function refresh(force) {
+    suggestions = findSuggestions(!!force);
+    selected = 0;
+    render();
+  }
+
+  ta.addEventListener('input', () => refresh(false));
+  ta.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' && suggestions.length) {
+      event.preventDefault(); selected = (selected + 1) % suggestions.length; render(); return;
+    }
+    if (event.key === 'ArrowUp' && suggestions.length) {
+      event.preventDefault(); selected = (selected + suggestions.length - 1) % suggestions.length; render(); return;
+    }
+    if ((event.key === 'Enter' || event.key === 'Tab') && suggestions.length) {
+      event.preventDefault(); insert(selected); return;
+    }
+    if (event.key === 'Escape') { hide(); return; }
+    if (event.ctrlKey && (event.code === 'Space' || event.key === ' ')) { event.preventDefault(); refresh(true); return; }
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      const position = ta.selectionStart;
+      ta.value = ta.value.slice(0, position) + '  ' + ta.value.slice(ta.selectionEnd);
+      ta.setSelectionRange(position + 2, position + 2);
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  });
+  ta.addEventListener('blur', () => setTimeout(hide, 120));
 }
 
 /* ---------- 表单守卫：未保存提示、自动 resize、Ctrl+Enter、作者记忆 ---------- */
 let isDirty = false;        // 是否有未保存修改
 let beforeUnloadHandler = null;
 let formFieldHandlers = []; // 字段监听器引用，避免重复绑定
+let draftTimer = null;
 
 function markDirty(on) {
   isDirty = !!on;
-  document.title = (isDirty ? '● ' : '') + '写作 - OSS Notes';
+  document.title = (isDirty ? '● ' : '') + '写作 - SUN Notes';
   // 已发布文章列表里高亮正在编辑的那篇
   document.querySelectorAll('.list-item').forEach(el => el.classList.remove('editing'));
   const id = document.getElementById('editId') && document.getElementById('editId').value;
@@ -236,7 +529,11 @@ function setupFormGuards(ta) {
   fields.forEach(name => {
     const el = document.getElementById(name);
     if (!el) return;
-    const handler = () => markDirty(true);
+    const handler = () => {
+      markDirty(true);
+      if (draftTimer) clearTimeout(draftTimer);
+      draftTimer = setTimeout(saveRecoveryDraft, 800);
+    };
     el.addEventListener('input', handler);
     el.addEventListener('change', handler);
     formFieldHandlers.push({el, ev: 'input', fn: handler});
@@ -307,6 +604,8 @@ function clearForm() {
   // 重置防重复指纹历史
   lastFp = '';
   lastPublishedAt = 0;
+  clearRecoveryDraft();
+  activeDraftId = '';
   // 按钮文案回到"发布"
   const btn = document.getElementById('publish');
   btn.textContent = '发布文章';
@@ -363,7 +662,14 @@ async function doPublish() {
     } else {
       // 记住作者
       if (data.author.trim()) localStorage.setItem('oss_last_author', data.author.trim());
-      flash(id ? '已更新！ID='+(r?.id||id) : '已发布！ID='+r.id, 'ok');
+      clearRecoveryDraft();
+      if (activeDraftId) {
+        writeDrafts(readDrafts().filter(item => item.id !== activeDraftId));
+        activeDraftId = '';
+      }
+      const savedId = r?.id || id;
+      flash((id ? '已更新！ID=' + savedId : '已发布！ID=' + savedId)
+        + ' <a href="#" onclick="editArt(' + savedId + ');return false">立即编辑</a>', 'ok');
       // 重置表单到"新建"状态
       document.getElementById('editId').value='';
       document.getElementById('title').value='';
@@ -400,8 +706,27 @@ async function doPublish() {
 /* ---------- 文章列表（编辑/删除） ---------- */
 async function loadList() {
   const el = document.getElementById('alist');
+  const draftEl = document.getElementById('draftList');
+  const publishedHeading = document.getElementById('publishedHeading');
+  if (publishedHeading) publishedHeading.style.display = 'block';
   el.innerHTML='<p>加载中...</p>';
-  const list = await api.list();
+  const drafts = readDrafts();
+  if (draftEl) {
+    draftEl.innerHTML = drafts.length ? '<div class="draft-list">' + drafts.map(d => `
+      <div class="list-item draft-item" data-draft-id="${esc(d.id)}">
+        <div><b>${esc(d.title || '未命名草稿')}</b>
+          <span class="Smaller">${new Date(d.savedAt).toLocaleString()} · 待发布</span></div>
+        <div class="act"><a href="#" onclick="loadDraft('${esc(d.id)}');return false"><b>继续编辑</b></a>
+          <a href="#" onclick="if(confirm('确定删除这个待发布草稿吗？'))deleteDraft('${esc(d.id)}');return false" style="color:#a44">删除草稿</a></div>
+      </div>`).join('') + '</div>' : '<p class="draft-empty">暂无待发布草稿。</p>';
+  }
+  let list;
+  try {
+    list = await api.list();
+  } catch (e) {
+    el.innerHTML = '<p class="msg err">已发布文章加载失败：' + esc(e.message) + '</p>';
+    return;
+  }
   if (!list.length) { el.innerHTML='<p>暂无文章。</p>'; return; }
   el.innerHTML = list.map(a=>`
     <div class="list-item" data-id="${a.id}">
@@ -411,7 +736,7 @@ async function loadList() {
         <span class="Smaller">[${a.category}] ${a.date} by ${a.author} · 评论 ${a.comments||0}</span>
       </div>
       <div class="act">
-        <a href="#" onclick="editArt(${a.id});return false">编辑</a>
+        <a href="#" onclick="editArt(${a.id});return false"><b>更新文章</b></a>
         <a href="article.html?id=${a.id}" target="_blank">查看</a>
         <a href="#" onclick="toggleComments(${a.id}, this);return false">评论</a>
         <a href="#" onclick="delArt(${a.id});return false" style="color:red">删除</a>
@@ -507,11 +832,26 @@ async function toggleComments(id, linkEl) {
       <div>
         <b>${esc(c.author)}</b>
         <span class="Smaller">${esc(c.date)} ${esc(c.time)}</span>
+        ${c.hidden ? '<span class="Smaller" style="color:#a44">（已隐藏）</span>' : ''}
+        <a href="#" onclick="toggleCommentHidden(${id}, ${c.id}, ${!c.hidden});return false" style="margin-left:0.5em">${c.hidden ? '恢复' : '隐藏'}</a>
         <a href="#" onclick="delCmt(${id}, ${c.id});return false" style="color:#a44;float:right">删除</a>
       </div>
       <div class="comment-mgr-body">${esc(c.content)}</div>
     </div>
   `).join('');
+}
+
+async function toggleCommentHidden(articleId, commentId, hidden) {
+  const r = await authedFetch('/api/articles/' + articleId + '/comments/' + commentId + '/hidden', {
+    method: 'PUT', headers: authH(), body: JSON.stringify({ hidden })
+  }).then(res => res.json());
+  if (r && !r.error) {
+    flash(hidden ? '评论已隐藏' : '评论已恢复', 'ok');
+    const link = document.querySelector(`.list-item[data-id="${articleId}"] .act a[onclick*="toggleComments"]`);
+    const box = document.getElementById('cmt-mgr-' + articleId);
+    if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+    if (link) await toggleComments(articleId, link);
+  }
 }
 
 async function delCmt(articleId, commentId) {
@@ -535,7 +875,7 @@ function flash(m,t) {
   f.innerHTML=`<div class="msg ${t}">${m}</div>`;
   setTimeout(()=>{ if (f) f.innerHTML=''; },4000);
 }
-function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function esc(s){return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 /* ---------- 图片：粘贴 + 插入图片按钮 ---------- */
 
@@ -622,4 +962,5 @@ function insertMarkdownAtCursor(ta, text) {
 }
 
 /* ---------- 启动 ---------- */
-if (isAuthed()) showEditor(); else showLogin();
+// 每次打开或刷新 admin.html 都重新要求输入管理员密码；token 只用于当前页面的管理请求。
+showLogin();

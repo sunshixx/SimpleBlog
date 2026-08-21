@@ -1,7 +1,7 @@
 {
-  "name": "oss-notes-blog",
+  "name": "sun-notes-blog",
   "version": "2.0.0",
-  "description": "OSS Notes - Linux/Open Source blog with lwn.net design",
+  "description": "SUN Notes - Linux/Open Source blog with lwn.net design",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

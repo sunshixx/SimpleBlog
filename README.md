@@ -1,0 +1,131 @@
+# SUN Notes
+
+一个记录个人学习、开源代码阅读、项目实践和技术思考的个人博客。
+
+## 环境要求
+
+- Node.js 18 或更高版本
+- 不需要 `npm install`
+- 不需要数据库服务
+- 不需要构建工具
+
+## 启动
+
+在项目目录执行：
+
+```powershell
+node server.js
+```
+
+浏览：`http://localhost:8080/`
+
+后台写作：`http://localhost:8080/admin.html`
+
+默认管理员密码来自 `db/config.json`。更推荐使用环境变量：
+
+```powershell
+$env:SUN_ADMIN_PASSWORD = 'change-me'
+node server.js
+```
+
+Linux/macOS：
+
+```bash
+SUN_ADMIN_PASSWORD='change-me' node server.js
+```
+
+不要把真实密码提交到 Git，也不要把密码写进截图或日志。
+
+## 权限模型
+
+这是个人博客，没有统一用户系统：
+
+- 首页、搜索、标签、关于、文章详情：公开访问
+- 评论查看和发表评论：公开访问
+- 发布、编辑、删除文章：需要管理员密码登录
+- 图片上传和删除：需要管理员登录
+- 评论隐藏、恢复、删除：需要管理员登录
+
+管理员登录只保护写作和管理入口，不会阻止读者查看文章。
+
+## 数据结构
+
+```text
+db/
+  config.json          管理员密码配置
+  articles/*.md       每篇文章一个 Markdown 文件
+  comments/*.json     每篇文章一个评论文件
+picture/              已归档图片
+css/                  样式和图片资源
+js/                   页面逻辑和 Markdown 渲染库
+```
+
+文章正文中的非 `picture/` 本地图片引用，在发布时会被复制到 `picture/` 并重写引用。源文件不会被移动。
+
+## 写作流程
+
+1. 打开 `admin.html` 并输入管理员密码。
+2. 填写标题、分类、作者、摘要和正文。
+3. 编辑器支持 Markdown 实时预览、数学公式、图片粘贴和图片上传。
+4. 草稿会自动保存到浏览器本地存储，也可以手动点击“保存草稿”。
+5. 点击“预览文章”检查最终效果。
+6. 点击“发布文章”写入 `db/articles/{id}.md`。
+
+草稿只保存在当前浏览器，不会出现在公开首页，也不会写入服务器。
+
+## 备份与迁移
+
+备份以下目录和文件：
+
+```text
+db/articles/
+db/comments/
+picture/
+db/config.json
+```
+
+换机器时：
+
+1. 安装 Node.js 18+。
+2. 复制整个项目目录。
+3. 检查 `db/config.json` 或设置 `SUN_ADMIN_PASSWORD`。
+4. 在项目目录执行 `node server.js`。
+5. 打开 `http://localhost:8080/`。
+
+## 常见问题
+
+### 8080 端口被占用
+
+Windows：
+
+```powershell
+Get-NetTCPConnection -LocalPort 8080 -State Listen
+Stop-Process -Id <PID> -Force
+node server.js
+```
+
+Linux/macOS：
+
+```bash
+lsof -i :8080
+kill <PID>
+node server.js
+```
+
+### 修改 Markdown 后页面没有变化
+
+服务器会在文章读取接口前重新扫描 `db/articles/`。刷新页面即可；若刚修改了 `server.js`，需要重启 Node 进程。
+
+### 管理员登录失效
+
+管理员 token 默认有效 12 小时。失效后重新打开 `admin.html` 登录即可。
+
+## 开发检查
+
+```powershell
+node --check server.js
+node --check js/app.js
+node --check js/admin.js
+```
+
+项目使用 Node.js 内置模块和浏览器原生 API，当前没有 npm 依赖。

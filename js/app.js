@@ -85,68 +85,6 @@ function formatDate(dateStr, time, weekday) {
   return `Posted ${m} ${day}, ${year} ${time || ''} (${weekday || ''})`;
 }
 
-/* ---------- 用户认证 helpers ---------- */
-const STORAGE_TOKEN = 'oss_token_user';
-const STORAGE_USER  = 'oss_user';
-
-function getStoredToken() {
-  try { return localStorage.getItem(STORAGE_TOKEN) || ''; } catch (e) { return ''; }
-}
-
-function getStoredUser() {
-  try {
-    const raw = localStorage.getItem(STORAGE_USER);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {}
-  return null;
-}
-
-function setStoredAuth(token, user) {
-  try {
-    localStorage.setItem(STORAGE_TOKEN, token);
-    localStorage.setItem(STORAGE_USER, JSON.stringify(user));
-  } catch (e) {}
-}
-
-function clearStoredAuth() {
-  try {
-    localStorage.removeItem(STORAGE_TOKEN);
-    localStorage.removeItem(STORAGE_USER);
-  } catch (e) {}
-}
-
-// 用 token 拉一次 /api/users/me 确认登录有效；失败时返回 null 并清 localStorage
-async function fetchMe() {
-  const tok = getStoredToken();
-  if (!tok) return null;
-  try {
-    const res = await fetch('/api/users/me', { headers: { 'Authorization': 'Bearer ' + tok } });
-    if (!res.ok) { clearStoredAuth(); return null; }
-    const data = await res.json();
-    if (data && data.user) {
-      try { localStorage.setItem(STORAGE_USER, JSON.stringify(data.user)); } catch (e) {}
-    }
-    return data.user;
-  } catch (e) {
-    return null;
-  }
-}
-
-async function requireLoginOrRedirect() {
-  if (!getStoredToken()) {
-    const next = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.replace('login.html?next=' + next);
-    return false;
-  }
-  const user = await fetchMe();
-  if (!user) {
-    const next = encodeURIComponent(window.location.pathname + window.location.search);
-    window.location.replace('login.html?next=' + next);
-    return false;
-  }
-  return true;
-}
-
 /* ---------- 共享布局 ---------- */
 function renderLayout(targetBodyContent, sidebarCats) {
   // 默认 6 个分类 + 动态从 articles 提取的分类，去重排序，截断前 10 个
@@ -157,21 +95,11 @@ function renderLayout(targetBodyContent, sidebarCats) {
     `<li><a href="search.html?cats=${encodeURIComponent(c)}">${escapeHtml(c)}</a></li>`
   ).join('');
 
-  // 右上角用户区（红框位置），独立分组放到 navbar 右侧
-  // 未登录 → [登录][注册] 两个原生 form-button
-  // 已登录 → "你好 xxx" + [退出]
-  const storedUser = getStoredUser();
-  const userAreaDesktop = storedUser
-    ? `<span class="Smaller">你好，<b>${escapeHtml(storedUser.username)}</b></span> | <form action="#" class="loginform" id="logoutForm"><input type="submit" value="退出" /></form>`
-    : `<form action="login.html" class="loginform"><input type="submit" value="登录" /></form> | <form action="register.html" class="loginform"><input type="submit" value="注册" /></form>`;
-  const userAreaMobile = storedUser
-    ? `<a href="#" id="logoutLink"><b>退出</b></a> / 你好 <b>${escapeHtml(storedUser.username)}</b>`
-    : `<a href="login.html"><b>登录</b></a> / <a href="register.html"><b>注册</b></a>`;
-
   const layout = `
 <div id="menu">
   <a href="index.html" aria-label="返回首页">
-    <span class="logo">OSS<br>.Notes</span>
+    <img class="logo" src="css/logo.jpg" alt="SUN Notes">
+    <span class="logo">SUN<br>.Notes</span>
     <span class="logobl">来自开源世界的观察</span>
   </a>
   <div class="navmenu-container">
@@ -206,7 +134,6 @@ function renderLayout(targetBodyContent, sidebarCats) {
       <form action="admin.html" class="loginform"><input type="submit" value="写作" /></form> |
       <form action="index.html" class="loginform"><input type="submit" value="首页" /></form>
     </div>
-    <div class="topnav-right">${userAreaDesktop}</div>
   </div>
   <div class="handset-only">
     <a href="index.html"><b>首页</b></a> /
@@ -214,7 +141,6 @@ function renderLayout(targetBodyContent, sidebarCats) {
     <a href="about.html"><b>关于</b></a> /
     <a href="tags.html"><b>标签</b></a> /
     <a href="admin.html"><b>写作</b></a>
-    | ${userAreaMobile}
   </div>
 </div>
 ${targetBodyContent}
@@ -222,33 +148,13 @@ ${targetBodyContent}
 <center>
   <P>
   <span class="ReallySmall">
-  Copyright &copy; 2026, OSS Notes<br>
+  Copyright &copy; 2026, SUN Notes<br>
   本站文章版权归原作者所有<br>
   </span>
 </center>
 `;
   document.body.innerHTML = layout;
 
-  // 退出按钮事件绑定（桌面 + 移动两套）
-  const loF = document.getElementById('logoutForm');
-  if (loF) loF.addEventListener('submit', async e => {
-    e.preventDefault();
-    await logoutAndRedirect();
-  });
-  const loL = document.getElementById('logoutLink');
-  if (loL) loL.addEventListener('click', async e => {
-    e.preventDefault();
-    await logoutAndRedirect();
-  });
-}
-
-async function logoutAndRedirect() {
-  const tok = getStoredToken();
-  if (tok) {
-    try { await fetch('/api/users/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok } }); } catch (e) {}
-  }
-  clearStoredAuth();
-  window.location.href = 'login.html';
 }
 
 /* ---------- 文章列表项 HTML ---------- */
@@ -344,7 +250,7 @@ async function renderHomePage() {
 
     return `
       <div class="HomeEdition" id="ed-${key}">
-        <h3 class="SummaryHL"><a name="${key}">OSS Notes Weekly Edition for ${formatEditionDate(maxDate)}</a></h3>
+        <h3 class="SummaryHL"><a name="${key}">SUN Notes Weekly Edition for ${formatEditionDate(maxDate)}</a></h3>
         <ul class="HomeEditionList">${itemsHTML}</ul>
       </div>
     `;
@@ -368,9 +274,9 @@ async function renderHomePage() {
   }).join('');
 
   const headerHTML = `
-    <div class="PageHeadline"><h1>OSS Notes 文章归档</h1></div>
+    <div class="PageHeadline"><h1>SUN Notes 文章归档</h1></div>
     <div class="ArticleText"><main>
-      <p>这里按发布日期整理 OSS Notes 自创建以来的全部文章。每期一周，最新发布在最上方。点击文章标题阅读全文。
+      <p>这里按发布日期整理 SUN Notes 自创建以来的全部文章。最新发布在最上方。点击文章标题阅读全文。
       <p>也可以前往 <a href="search.html">搜索</a> 页面按关键词与分类筛选；或者 <a href="tags.html">标签页</a> 按主题浏览。
       <p>
       <div class="lwn-search-box">
@@ -378,6 +284,7 @@ async function renderHomePage() {
           <div class="lwn-search-row">
             <span class="lwn-search-label"><b>Query：</b></span>
             <input type="text" name="q" size="40" autofocus placeholder="输入关键词搜索..." />
+            <input type="submit" value="搜索" class="lwn-search-btn" />
           </div>
           <div class="lwn-search-row">
             <span class="lwn-search-label"><b>分类筛选：</b></span>
@@ -399,9 +306,6 @@ async function renderHomePage() {
             <span class="lwn-search-label"><b>排序：</b></span>
             <label><input type="radio" name="order" value="relevance" /> 相关度</label>
             <label><input type="radio" name="order" value="date" checked /> 日期</label>
-          </div>
-          <div class="lwn-search-row">
-            <input type="submit" value="搜索" class="lwn-search-btn" />
           </div>
         </form>
       </div>
@@ -436,6 +340,14 @@ async function renderHomePage() {
 async function renderArticlePage() {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id') || 1;
+  const requestedReturnUrl = params.get('from') || '';
+  let returnUrl = '';
+  try {
+    const parsedReturnUrl = new URL(requestedReturnUrl, window.location.href);
+    if (parsedReturnUrl.origin === window.location.origin && parsedReturnUrl.pathname.endsWith('/search.html')) {
+      returnUrl = parsedReturnUrl.pathname + parsedReturnUrl.search;
+    }
+  } catch (e) {}
 
   // 并发拉：单篇 + 列表 + 评论
   let article = null;
@@ -462,21 +374,43 @@ async function renderArticlePage() {
   }
 
   const subMark = article.subscription ? '[<span class="Subscription">$</span>] ' : '';
+  const articleIndex = allArticles.findIndex(a => a.id === article.id);
+  // 文章按发布时间倒序：左侧永远是较早文章，右侧永远是较新文章。
+  const olderArticle = articleIndex >= 0 && articleIndex < allArticles.length - 1 ? allArticles[articleIndex + 1] : null;
+  const newerArticle = articleIndex > 0 ? allArticles[articleIndex - 1] : null;
+  const navReturn = returnUrl ? '&from=' + encodeURIComponent(returnUrl) : '';
+  const articleNav = `<p class="article-nav">${olderArticle ? '<a href="article.html?id=' + olderArticle.id + navReturn + '" title="阅读较早发布的文章">← 较早文章：' + escapeHtml(olderArticle.title) + '</a>' : '<span></span>'}${newerArticle ? '<a href="article.html?id=' + newerArticle.id + navReturn + '" title="阅读较新发布的文章">较新文章：' + escapeHtml(newerArticle.title) + ' →</a>' : '<span></span>'}</p>`;
   const tagsHTML = (article.tags || []).map(t =>
     `<a href="tags.html?tag=${t}" class="tag-badge">${t}</a>`
   ).join('');
+  const categoryHTML = `<a class="category-badge" href="search.html?cats=${encodeURIComponent(article.category || '')}">${escapeHtml(article.category)}</a>`;
+  const related = allArticles
+    .filter(a => a.id !== article.id)
+    .map(a => ({ article: a, score: (a.category === article.category ? 3 : 0) + (a.tags || []).filter(t => (article.tags || []).includes(t)).length }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score || (b.article.date + ' ' + b.article.time).localeCompare(a.article.date + ' ' + a.article.time))
+    .slice(0, 3)
+    .map(x => `<li><a href="article.html?id=${x.article.id}">${escapeHtml(x.article.title)}</a></li>`)
+    .join('');
+  const relatedHTML = related ? `<section class="related-articles"><h3 class="Headline">相关文章</h3><ul>${related}</ul></section>` : '';
+  const updatedText = article.updatedAt ? new Date(article.updatedAt).toLocaleString('zh-CN') : formatDate(article.date, article.time, article.weekday);
+  const returnHTML = returnUrl ? ` | <a href="${escapeHtml(returnUrl)}">返回搜索结果</a>` : '';
 
   const mainContent = `
+<div id="readingProgress" aria-hidden="true"></div>
 <div class="maincolumn flexcol">
   <div class="middlecolumn">
     <div class="PageHeadline"><h1>${subMark}${escapeHtml(article.title)}</h1></div>
     <div class="ArticleText"><main>
       <div class="article-meta">
-        <span class="category-badge">${article.category}</span>
-        ${formatDate(article.date, article.time, article.weekday)} by <b>${article.author}</b>
-        | <a href="index.html">返回列表</a>
+        ${categoryHTML}
+        ${formatDate(article.date, article.time, article.weekday)} by <b>${escapeHtml(article.author)}</b>
+        | <a href="index.html">返回列表</a>${returnHTML}
+        <br><span>最后更新：${escapeHtml(updatedText)}</span>
       </div>
+      ${articleNav}
       <div class="markdown-body">${renderMarkdown(article.content)}</div>
+      ${relatedHTML}
       <a name="Comments"></a>
       <h2 class="Headline">评论 (${comments.length})</h2>
       <div id="commentList" class="comment-list">
@@ -510,7 +444,8 @@ async function renderArticlePage() {
 </div>
   `;
   renderLayout(mainContent, [...new Set(allArticles.map(a => a.category))]);
-  document.title = `${article.title} [OSS Notes]`;
+  document.title = `${article.title} [SUN Notes]`;
+  setupReadingProgress();
   // 渲染数学公式（KaTeX）+ 目录（TOC）+ 代码高亮（hljs）
   setTimeout(() => {
     const body = document.querySelector('.markdown-body');
@@ -522,7 +457,33 @@ async function renderArticlePage() {
       if (tocHTML) right.innerHTML = tocHTML;
     }
     highlightCodeBlocks(body);
+    setupImageLightbox(body);
   }, 0);
+}
+
+function setupReadingProgress() {
+  const bar = document.getElementById('readingProgress');
+  const update = () => {
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    bar.style.width = (max > 0 ? Math.min(100, window.scrollY / max * 100) : 0) + '%';
+  };
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+}
+
+function setupImageLightbox(body) {
+  body.querySelectorAll('img').forEach(image => {
+    image.title = image.title || '点击放大';
+    image.addEventListener('click', () => {
+      const overlay = document.createElement('div');
+      overlay.className = 'image-lightbox';
+      overlay.innerHTML = '<img src="' + escapeHtml(image.src) + '" alt="' + escapeHtml(image.alt || '') + '"><button type="button" aria-label="关闭">关闭</button>';
+      const close = () => overlay.remove();
+      overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+      overlay.querySelector('button').addEventListener('click', close);
+      document.body.appendChild(overlay);
+    });
+  });
 }
 
 /* ---------- 目录 + 代码高亮 helpers ---------- */
@@ -571,6 +532,19 @@ function highlightCodeBlocks(el) {
     if (typeof window.hljs !== 'undefined') {
       el.querySelectorAll('pre code').forEach(b => {
         try { window.hljs.highlightElement(b); } catch (e) { /* 静默 */ }
+        if (!b.parentElement.querySelector('.copy-code')) {
+          const button = document.createElement('button');
+          button.className = 'copy-code';
+          button.type = 'button';
+          button.textContent = '复制代码';
+          button.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(b.textContent); button.textContent = '已复制'; }
+            catch (err) { button.textContent = '复制失败'; }
+            setTimeout(() => { button.textContent = '复制代码'; }, 1200);
+          });
+          b.parentElement.style.position = 'relative';
+          b.parentElement.appendChild(button);
+        }
       });
     } else if (retries < 60) {
       setTimeout(() => tryHighlight(retries + 1), 50);
@@ -651,8 +625,12 @@ window.submitComment = async function(e, articleId) {
 window.submitSearchForm = function(form) {
   var q = form.querySelector('[name=q]').value;
   var cs = Array.from(form.querySelectorAll('[name=cat]:checked')).map(function(c){return c.value;});
-  var url = 'search.html?q=' + encodeURIComponent(q);
-  if (cs.length) url += '&cats=' + encodeURIComponent(cs.join(','));
+  var orderEl = form.querySelector('[name=order]:checked');
+  var order = orderEl ? orderEl.value : 'date';
+  // 始终传 cats，包括空值；空值代表用户明确取消了全部分类。
+  var url = 'search.html?q=' + encodeURIComponent(q)
+    + '&cats=' + encodeURIComponent(cs.join(','))
+    + '&order=' + encodeURIComponent(order);
   window.location.href = url;
   return false;
 };
@@ -662,6 +640,8 @@ async function renderSearchPage() {
   const query = params.get('q') || '';
   const cat = params.get('cat') || '';        // 单选，向后兼容
   const cats = (params.get('cats') || '').split(',').map(s => s.trim()).filter(Boolean);
+  const hasCatsParam = params.has('cats');
+  const order = params.get('order') === 'relevance' ? 'relevance' : 'date';
 
   let allArticles = [];
   try {
@@ -685,16 +665,48 @@ async function renderSearchPage() {
   if (query) {
     const q = query.toLowerCase();
     results = results.filter(a =>
-      a.title.toLowerCase().includes(q) ||
-      a.summary.toLowerCase().includes(q) ||
-      (a.tags || []).some(t => t.toLowerCase().includes(q)) ||
-      a.category.toLowerCase().includes(q) ||
-      a.author.toLowerCase().includes(q)
+      String(a.title || '').toLowerCase().includes(q) ||
+      String(a.summary || '').toLowerCase().includes(q) ||
+      (a.tags || []).some(t => String(t).toLowerCase().includes(q)) ||
+      String(a.category || '').toLowerCase().includes(q) ||
+      String(a.author || '').toLowerCase().includes(q)
     );
   }
-  if (catsSet.size) {
-    results = results.filter(a => catsSet.has(a.category.toLowerCase()));
+  if (hasCatsParam && catsSet.size === 0) {
+    results = [];
+  } else if (catsSet.size) {
+    results = results.filter(a => catsSet.has(String(a.category || '').toLowerCase()));
   }
+
+  function articleDateValue(article) {
+    return (article.date || '') + ' ' + (article.time || '');
+  }
+
+  function relevanceScore(article, term) {
+    if (!term) return 0;
+    const q = term.toLowerCase();
+    const title = String(article.title || '').toLowerCase();
+    const summary = String(article.summary || '').toLowerCase();
+    const tags = (article.tags || []).map(t => String(t).toLowerCase()).join(' ');
+    const category = String(article.category || '').toLowerCase();
+    const author = String(article.author || '').toLowerCase();
+    let score = 0;
+    if (title === q) score += 1000;
+    if (title.includes(q)) score += 500;
+    if (tags.includes(q)) score += 250;
+    if (summary.includes(q)) score += 100;
+    if (category.includes(q)) score += 50;
+    if (author.includes(q)) score += 25;
+    return score;
+  }
+
+  results.sort((a, b) => {
+    if (order === 'relevance' && query) {
+      const scoreDiff = relevanceScore(b, query) - relevanceScore(a, query);
+      if (scoreDiff) return scoreDiff;
+    }
+    return articleDateValue(b).localeCompare(articleDateValue(a));
+  });
 
   let resultsHTML = '';
   if (query || cat || cats.length) {
@@ -705,12 +717,12 @@ async function renderSearchPage() {
         const subMark = a.subscription ? '[<span class="Subscription">$</span>] ' : '';
         return `
           <div class="search-result">
-            <h3 class="Headline">${subMark}<a href="article.html?id=${a.id}" style="color:inherit;text-decoration:none;">${highlightMatch(a.title, query)}</a></h3>
+            <h3 class="Headline">${subMark}<a href="article.html?id=${a.id}&from=${encodeURIComponent(window.location.href)}" style="color:inherit;text-decoration:none;">${highlightMatch(a.title, query)}</a></h3>
             <div class="Smaller" style="margin:0.2em 0 0.6em 0;color:var(--VLinkColor)">
               [${a.category}] ${formatDate(a.date, a.time, a.weekday)} by ${a.author}${a.comments ? ' · <a href="article.html?id='+a.id+'#Comments" style="color:var(--VLinkColor)">评论 '+a.comments+'</a>' : ''}
             </div>
             <p style="margin:0 0 0.4em 0">${highlightMatch(a.summary, query)}</p>
-            <a href="article.html?id=${a.id}">Full Story</a>
+            <a href="article.html?id=${a.id}&from=${encodeURIComponent(window.location.href)}">Full Story</a>
           </div>
         `;
       }).join('\n');
@@ -722,7 +734,7 @@ async function renderSearchPage() {
   <div class="middlecolumn">
     <div class="PageHeadline"><h1>搜索文章归档</h1></div>
     <div class="ArticleText"><main>
-      欢迎使用 OSS Notes 搜索引擎。
+      欢迎使用 SUN Notes 搜索引擎。
       <p>在这里可以搜索全部内容。将搜索字符串用引号括起可搜索连续词组。
       <p>
       <blockquote>
@@ -735,18 +747,23 @@ async function renderSearchPage() {
             <div class="lwn-cats">
               ${allCats.map(c => {
                 const lc = c.toLowerCase();
-                const checked = hasFilter ? (catsSet.has(lc) ? 'checked' : '') : 'checked';
-                return `<label><input type="checkbox" name="cat" value="${c}" ${checked} onchange="submitSearchForm(this.form);" /> ${c}</label>`;
+                const checked = hasFilter || hasCatsParam ? (catsSet.has(lc) ? 'checked' : '') : 'checked';
+                return `<label><input type="checkbox" name="cat" value="${c}" ${checked} /> ${c}</label>`;
               }).join('')}
               <a href="#" onclick="
                 var bs=this.parentNode.querySelectorAll('input[type=checkbox]');
                 var all=Array.from(bs).every(function(b){return b.checked;});
                 bs.forEach(function(b){b.checked=!all;});
-                return submitSearchForm(bs.length?bs[0].form:null);" style="margin-left:0.5em">全部切换</a>
+                return false;" style="margin-left:0.5em">全部切换</a>
             </div>
           </td></tr>
+        <tr><td valign="top"><b>排序：</b></td>
+          <td valign="top">
+            <label><input type="radio" name="order" value="relevance" ${order === 'relevance' ? 'checked' : ''} /> 相关度</label>
+            <label><input type="radio" name="order" value="date" ${order === 'date' ? 'checked' : ''} /> 日期</label>
+          </td></tr>
         <tr><td valign="top"><b></b></td>
-          <td valign="top"><input type="submit" value="搜索" /></td></tr>
+          <td valign="top"><input type="submit" value="搜索" /> <a href="search.html">清除筛选</a></td></tr>
       </table>
       </form>
       </blockquote>
@@ -821,13 +838,13 @@ async function renderTagsPage() {
 
 /* ---------- 关于页 ---------- */
 function renderAboutPage() {
-  const aboutMarkdown = `## 关于 OSS Notes
+  const aboutMarkdown = `## 关于 SUN Notes
 
-**OSS Notes** 是一个读者支持的个人博客，致力于提供来自 Linux 和自由软件开发社区内部的观察与报道。
+**SUN Notes** 是我记录学习过程的个人博客，主要分享阅读开源代码时的理解与感悟，也记录自己做项目时遇到的问题、实践过程和一路上的思考。
 
 ### 站点理念
 
-本站的设计灵感来源于 [LWN.net](https://lwn.net/)，一个在 Linux 和开源社区中享有盛誉的新闻站点。我们采用与其相同的设计风格——简洁、实用、内容优先。
+这里既是学习笔记，也是一个整理思路的地方。我会记录对技术的探索、对开源项目的观察、自己做项目时的心路历程，以及在实践中形成的想法和总结。内容不一定完整或成熟，但希望它们能够真实地留下每一步学习和思考的痕迹。
 
 ### 内容范围
 
@@ -848,20 +865,17 @@ function renderAboutPage() {
 
 本站提供独立的<a href="admin.html">写作入口</a>，支持 Markdown 实时预览编辑。
 
-### 关于设计
-
-一比一复刻 LWN.net 视觉设计：左侧固定导航栏、桃色标题栏、深蓝链接、衬线字体正文、响应式布局。
-
 ### 联系方式<a name="contact"></a>
 
-如有建议或投稿意向，欢迎联系。
+邮箱：[sunshixx@gmail.com](mailto:sunshixx@gmail.com)
 
-> "News from the source" — 这是我们的信条。`;
+GitHub：[github.com/sunshixx](https://github.com/sunshixx)
+`;
 
   const mainContent = `
 <div class="maincolumn flexcol">
   <div class="middlecolumn">
-    <div class="PageHeadline"><h1>关于 OSS Notes</h1></div>
+    <div class="PageHeadline"><h1>关于 SUN Notes</h1></div>
     <div class="ArticleText"><main>
       <div class="markdown-body">${renderMarkdown(aboutMarkdown)}</div>
     </main></div>
@@ -872,118 +886,6 @@ function renderAboutPage() {
   renderLayout(mainContent);
   // 渲染数学公式（KaTeX）
   setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
-}
-
-/* ---------- 登录 / 注册页面 ----------
-   朴素 form 风格，与 LWN 登录按钮风格一致；登录后跳 next= 或回首页。 */
-
-function getNextFromUrl() {
-  try {
-    const n = new URLSearchParams(window.location.search).get('next');
-    if (n && /^[\w./?=&%+-]+$/.test(n)) return n;
-  } catch (e) {}
-  return 'index.html';
-}
-
-function showFlash(target, msg, type) {
-  target.innerHTML = `<div class="msg ${type}">${escapeHtml(msg)}</div>`;
-}
-
-function renderLoginPage() {
-  const nextUrl = getNextFromUrl();
-  const mainContent = `
-<div class="maincolumn flexcol"><div class="middlecolumn">
-  <div class="PageHeadline"><h1>登录</h1></div>
-  <div class="ArticleText">
-    <div class="login-box">
-      <p>请输入用户名和密码登录 OSS Notes。</p>
-      <input type="text" id="username" placeholder="用户名" autofocus>
-      <input type="password" id="pwd" placeholder="密码">
-      <button class="btn" id="go">登录</button>
-      <div id="msg"></div>
-      <p class="Smaller" style="margin-top:1em">还没有账号？<a href="register.html${nextUrl !== 'index.html' ? '?next=' + encodeURIComponent(nextUrl) : ''}">注册新账号</a></p>
-    </div>
-  </div>
-</div></div>
-  `;
-  renderLayout(mainContent);
-  const msgEl = document.getElementById('msg');
-  document.getElementById('go').addEventListener('click', async () => {
-    const u = document.getElementById('username').value.trim();
-    const p = document.getElementById('pwd').value;
-    if (!u || !p) { showFlash(msgEl, '请填写用户名和密码', 'err'); return; }
-    showFlash(msgEl, '登录中...', 'info');
-    try {
-      const res = await fetch('/api/users/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { showFlash(msgEl, data.error || '登录失败', 'err'); return; }
-      setStoredAuth(data.token, data.user);
-      window.location.href = nextUrl;
-    } catch (e) {
-      showFlash(msgEl, '网络错误：' + e.message + '（请确认当前页面 URL 是 http://localhost:8080/ 而不是 file://）', 'err');
-    }
-  });
-  // Enter 提交
-  document.getElementById('pwd').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('go').click();
-  });
-  document.getElementById('username').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('pwd').focus();
-  });
-}
-
-function renderRegisterPage() {
-  const nextUrl = getNextFromUrl();
-  const mainContent = `
-<div class="maincolumn flexcol"><div class="middlecolumn">
-  <div class="PageHeadline"><h1>注册新账号</h1></div>
-  <div class="ArticleText">
-    <div class="login-box">
-      <p>用户名仅支持字母、数字、下划线、短横线、点号；密码至少 4 位。</p>
-      <input type="text" id="username" placeholder="用户名" autofocus>
-      <input type="password" id="pwd" placeholder="密码（≥ 4 位）">
-      <input type="password" id="pwd2" placeholder="再次输入密码">
-      <button class="btn" id="go">注册</button>
-      <div id="msg"></div>
-      <p class="Smaller" style="margin-top:1em">已经有账号？<a href="login.html${nextUrl !== 'index.html' ? '?next=' + encodeURIComponent(nextUrl) : ''}">直接登录</a></p>
-    </div>
-  </div>
-</div></div>
-  `;
-  renderLayout(mainContent);
-  const msgEl = document.getElementById('msg');
-  document.getElementById('go').addEventListener('click', async () => {
-    const u = document.getElementById('username').value.trim();
-    const p = document.getElementById('pwd').value;
-    const p2 = document.getElementById('pwd2').value;
-    if (!u || !p) { showFlash(msgEl, '请填写用户名和密码', 'err'); return; }
-    if (p !== p2) { showFlash(msgEl, '两次密码不一致', 'err'); return; }
-    showFlash(msgEl, '注册中...', 'info');
-    try {
-      const res = await fetch('/api/users/register', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { showFlash(msgEl, data.error || '注册失败', 'err'); return; }
-      // 注册成功自动登录
-      setStoredAuth(data.token, data.user);
-      window.location.href = nextUrl;
-    } catch (e) {
-      // 常见原因：当前 URL 是 file:// 而非 http://，或后端 server 没跑
-      const isFile = window.location.protocol === 'file:';
-      const hint = isFile
-        ? '（检测到当前页面是 file:// 协议，无法请求 localhost。请通过 http://localhost:8080/ 访问。）'
-        : '（请确认后端服务器正在运行：node server.js）';
-      showFlash(msgEl, '网络错误：' + e.message + ' ' + hint, 'err');
-    }
-  });
-  document.getElementById('pwd2').addEventListener('keydown', e => {
-    if (e.key === 'Enter') document.getElementById('go').click();
-  });
 }
 
 /* ---------- 工具函数 ---------- */
@@ -1003,18 +905,8 @@ function highlightMatch(text, query) {
 /* ---------- 页面路由 ----------
    关键：标志首次渲染是否完成，避免 pageshow 在初次加载时重复跑 init。 */
 let _initialRenderDone = false;
-// 需要登录才能访问的页面；公共页面（login/register/admin）独立走流程
-const PROTECTED_PAGES = new Set(['home', 'article', 'search', 'tags', 'about']);
 async function init() {
   const page = document.body.getAttribute('data-page');
-  // 受保护页面：检查 token，没登录就跳 login.html?next=...
-  if (PROTECTED_PAGES.has(page)) {
-    if (!getStoredToken()) {
-      const next = encodeURIComponent(window.location.pathname + window.location.search);
-      window.location.replace('login.html?next=' + next);
-      return;
-    }
-  }
   try {
     switch (page) {
       case 'home':    await renderHomePage(); break;
@@ -1022,8 +914,6 @@ async function init() {
       case 'search':  await renderSearchPage(); break;
       case 'tags':    await renderTagsPage(); break;
       case 'about':   renderAboutPage(); break;
-      case 'login':   renderLoginPage(); break;
-      case 'register':renderRegisterPage(); break;
       default:        await renderHomePage();
     }
   } catch (e) {

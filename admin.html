@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>写作 - OSS Notes</title>
+<title>写作 - SUN Notes</title>
+<link rel="icon" href="css/logo.jpg" type="image/jpeg">
 <link rel="stylesheet" href="css/lwn.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 <style>
@@ -17,6 +18,16 @@
     width:100%; min-height:320px; padding:8px; border:1px solid var(--FormBG);
     border-radius:0.5em; font-family:monospace; font-size:14px; box-sizing:border-box;
   }
+  .autocomplete-wrap { position:relative; }
+  .autocomplete-list {
+    display:none; position:absolute; z-index:5; left:8px; bottom:8px;
+    min-width:180px; max-width:calc(100% - 16px); max-height:180px;
+    overflow-y:auto; background:var(--PageBG); color:var(--TextColor);
+    border:1px solid var(--FormBG); box-shadow:2px 2px 5px rgba(0,0,0,0.18);
+  }
+  .autocomplete-list.visible { display:block; }
+  .autocomplete-item { padding:3px 7px; cursor:pointer; white-space:pre; font-family:monospace; }
+  .autocomplete-item.active, .autocomplete-item:hover { background:var(--HeadlineBG); }
   .row2 { display:flex; gap:1em; }
   .row2 > div { flex:1; }
   .editor-split { display:flex; gap:1em; margin-top:0.3em; }
@@ -39,6 +50,9 @@
     display:flex; justify-content:space-between; align-items:center;
   }
   .list-item:hover { background:var(--FormBG); }
+  .draft-item { color:#a33; border-left:3px solid #a33; background:#fff7f7; }
+  .draft-item:hover { background:#fcecec; }
+  .draft-item .Smaller { color:#a33; }
   .list-item .act a { margin-left:0.5em; font-size:small; }
   /* 正在编辑的文章高亮 */
   .list-item.editing {
