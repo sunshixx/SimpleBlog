@@ -102,7 +102,6 @@ ${targetBodyContent}
   <span class="ReallySmall">
   Copyright &copy; 2026, OSS Notes<br>
   本站文章版权归原作者所有<br>
-  Linux 是 Linus Torvalds 的注册商标<br>
   </span>
 </center>
 `;
