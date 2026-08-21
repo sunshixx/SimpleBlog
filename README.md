@@ -21,21 +21,6 @@ node server.js
 
 后台写作：`http://localhost:8080/admin.html`
 
-默认管理员密码来自 `db/config.json`。更推荐使用环境变量：
-
-```powershell
-$env:SUN_ADMIN_PASSWORD = 'change-me'
-node server.js
-```
-
-Linux/macOS：
-
-```bash
-SUN_ADMIN_PASSWORD='change-me' node server.js
-```
-
-不要把真实密码提交到 Git，也不要把密码写进截图或日志。
-
 ## 权限模型
 
 这是个人博客，没有统一用户系统：
