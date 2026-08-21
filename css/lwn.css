@@ -383,6 +383,23 @@ DIV.topnav-container {
   border-radius: 0.8em;
   padding: 0.3em;
 }
+/* 顶栏左右分栏：左侧主导航，右侧用户登录区
+   注意：`.not-handset`（在 @media (min-width: 48em) 块内）的 specificity
+   与单一 class 相同（0,1,0），后定义者胜出。所以这里用双 class 选择器
+   `.not-handset.topnav-row` 把特异性提升到 (0,2,0)，保证 flex 不会被
+   inline-block 覆盖掉。*/
+.not-handset.topnav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1em;
+}
+.topnav-left { flex: 1 1 auto; min-width: 0; }
+.topnav-right { flex: 0 0 auto; white-space: nowrap; }
+@media (max-width: 48em) {
+  .topnav-row { flex-direction: column; align-items: flex-start; gap: 0.4em; }
+  .topnav-right { width: 100%; }
+}
 
 DIV.top-banner {
   margin-left: 0.5em;
@@ -593,7 +610,7 @@ br.clear { clear: both; }
 .markdown-body li { margin-bottom: 0.3em; }
 .markdown-body pre {
   background-color: var(--FormBG);
-  padding: 0.8em;
+  padding: 0.6em 0.8em;
   border-radius: 0.5em;
   overflow-x: auto;
   margin: 1em 0;
@@ -607,6 +624,39 @@ br.clear { clear: both; }
 .markdown-body pre code {
   background-color: transparent;
   padding: 0;
+  white-space: pre;
+}
+
+/* ============================================================
+   文章右侧 TOC（按 markdown 标题自动生成）— LWN 朴素风
+   ============================================================ */
+.article-toc { font-size: smaller; }
+.article-toc p.Header {
+  font-weight: bold;
+  text-indent: 0;
+  margin-left: 0;
+  padding: 4px 6px;
+  background: var(--NewLeftColBG);
+  border-radius: 0.3em;
+}
+.article-toc ul { margin: 0.4em 0 0.6em 0.4em; padding-left: 0; }
+.article-toc ul li { margin-bottom: 0.25em; line-height: 1.45; }
+/* H2 主级：不缩进 */
+.article-toc li.article-toc-h2 { font-size: 1em; font-weight: bold; }
+/* H3 二级：中等缩进 */
+.article-toc li.article-toc-h3 { margin-left: 0.7em; font-size: 0.95em; }
+/* H4 三级：更大缩进 + 更小字号 */
+.article-toc li.article-toc-h4 { margin-left: 1.4em; font-size: 0.9em; color: var(--VLinkColor); }
+.article-toc a:link, .article-toc a:visited { color: var(--LinkColor); text-decoration: none; }
+.article-toc a:hover { background-color: var(--HeadlineBG); color: var(--LinkColor); }
+.article-toc .active {
+  background: var(--HeadlineBG);
+  font-weight: bold;
+  padding-left: 4px;
+  border-left: 2px solid var(--LogoColor);
+}
+@media (max-width: 48em) {
+  .article-toc { display: none; } /* 移动端隐藏 TOC，主内容先看 */
 }
 .markdown-body blockquote {
   border-left: 4px solid var(--HeadlineBG);
@@ -801,4 +851,59 @@ br.clear { clear: both; }
   .lwn-search-label {
     min-width: auto;
   }
+}
+
+/* ============================================================
+   首页 archive 视图（按期分组） — 模仿 LWN.net Archives 版式
+   ============================================================ */
+
+.HomeEdition {
+  margin: 1.6em 0 0.4em;
+  padding-top: 0.6em;
+  border-top: 1px solid var(--FormBG);
+}
+.HomeEdition:first-of-type {
+  border-top: none;
+  margin-top: 0.8em;
+}
+.HomeEdition h3.SummaryHL {
+  margin: 0 0 0.5em 0;
+  padding: 4px 6px;
+  background: var(--NewLeftColBG);
+}
+.HomeEdition h3.SummaryHL a,
+.HomeEdition h3.SummaryHL a:link,
+.HomeEdition h3.SummaryHL a:visited {
+  color: var(--TextColor);
+  text-decoration: underline;
+}
+.HomeEdition h3.SummaryHL a:hover {
+  background-color: var(--HeadlineBG);
+}
+.HomeEditionList {
+  margin: 0.2em 0 0.6em 0.4em;
+  padding-left: 1.6em;
+  list-style: disc;
+}
+.HomeEditionList li {
+  margin-bottom: 0.35em;
+  line-height: 1.45;
+}
+.HomeArticle {
+  /* 每篇文章 bullet：标题 + 一行元数据 */
+}
+.HomeArticleMeta {
+  color: var(--VLinkColor);
+  margin-left: 0.2em;
+  white-space: normal;
+}
+/* 列表里的 .cat-tag 暂未使用，目前元数据用 [分类] 文本展示；保留类以备后用 */
+.HomeArticle .cat-tag {
+  background: var(--FormBG);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: x-small;
+  font-weight: bold;
+  display: inline-block;
+  margin-right: 0.3em;
 }

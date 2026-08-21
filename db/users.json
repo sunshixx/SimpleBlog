@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "sunshixun",
+      "passwordHash": "07fd38dd8f47e655adafee60c62ae437e8c391dd6eed47143efc5697072b854e623f163710478390603a5f8a3a1db89021365da5dd099cb552369ede2b72dbaa",
+      "salt": "1083b22b272e748dc12e2938021a7449",
+      "createdAt": "2026-08-21T05:33:41.918Z",
+      "displayName": "sunshixun"
+    },
+    {
+      "id": 2,
+      "username": "sun",
+      "passwordHash": "92973995e4d4e43efe586856df8eebeafdd96dc00fb2fb8919fcef9f64b50f76205fd4ea71e0b5ab8fe4d9803c3c488ff2b84686680d7e61901d55bee2fb2b1a",
+      "salt": "e8e468c09a725984f0fb0701dfbe9b45",
+      "createdAt": "2026-08-21T05:42:50.278Z",
+      "displayName": "sun"
+    }
+  ]
+}

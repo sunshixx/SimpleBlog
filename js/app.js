@@ -24,7 +24,9 @@ function rewritePicturePaths(md) {
 // 在 marked 解析后的 DOM 树里自动识别 $$..$$ 和 $..$ 并替换
 function renderMathIn(el) {
   if (typeof window === 'undefined') return;
-  // 等 KaTeX 库加载完
+  if (!el) return; // 没有目标节点直接退出，避免后续对 null 调用
+  // 等 KaTeX 库加载完（最多重试 60 次 = 3 秒；超时则放弃，避免 CDN 挂掉时无限循环）
+  let retries = 0;
   const tryRender = () => {
     if (typeof window.renderMathInElement === 'function') {
       try {
@@ -36,10 +38,11 @@ function renderMathIn(el) {
           throwOnError: false
         });
       } catch (e) { /* 静默 */ }
-    } else {
+    } else if (retries++ < 60) {
       // KaTeX 还没加载完，50ms 后重试
       setTimeout(tryRender, 50);
     }
+    // 超过重试上限就放弃：CDN 挂了或被防火墙挡住
   };
   tryRender();
 }
@@ -52,19 +55,23 @@ function renderMarkdown(md) {
 // 降级路径也走一遍路径重写（避免 marked 缺失时图片显示为外链）
 function rewriteMarkdownEscaped(md) { return rewritePicturePaths(md || ''); }
 
-/* ---------- API 调用 ---------- */
+/* ---------- API 调用 ----------
+   一律带 cache: 'no-store'，避免浏览器把上一份的
+   列表/评论缓存发给 bfcache 恢复后的页面，用户因此看到旧评论数。
+   后退时由 pageshow 监听器重新调用 renderXxxPage()，配合此选项
+   保证拿到的是服务器当前的真实数据。 */
 async function fetchArticles() {
-  const res = await fetch('/api/articles');
+  const res = await fetch('/api/articles', { cache: 'no-store' });
   return res.json();
 }
 
 async function fetchArticle(id) {
-  const res = await fetch('/api/articles/' + id);
+  const res = await fetch('/api/articles/' + id, { cache: 'no-store' });
   return res.json();
 }
 
 async function fetchTagIndex() {
-  const res = await fetch('/api/tags');
+  const res = await fetch('/api/tags', { cache: 'no-store' });
   return res.json();
 }
 
@@ -78,6 +85,68 @@ function formatDate(dateStr, time, weekday) {
   return `Posted ${m} ${day}, ${year} ${time || ''} (${weekday || ''})`;
 }
 
+/* ---------- 用户认证 helpers ---------- */
+const STORAGE_TOKEN = 'oss_token_user';
+const STORAGE_USER  = 'oss_user';
+
+function getStoredToken() {
+  try { return localStorage.getItem(STORAGE_TOKEN) || ''; } catch (e) { return ''; }
+}
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_USER);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return null;
+}
+
+function setStoredAuth(token, user) {
+  try {
+    localStorage.setItem(STORAGE_TOKEN, token);
+    localStorage.setItem(STORAGE_USER, JSON.stringify(user));
+  } catch (e) {}
+}
+
+function clearStoredAuth() {
+  try {
+    localStorage.removeItem(STORAGE_TOKEN);
+    localStorage.removeItem(STORAGE_USER);
+  } catch (e) {}
+}
+
+// 用 token 拉一次 /api/users/me 确认登录有效；失败时返回 null 并清 localStorage
+async function fetchMe() {
+  const tok = getStoredToken();
+  if (!tok) return null;
+  try {
+    const res = await fetch('/api/users/me', { headers: { 'Authorization': 'Bearer ' + tok } });
+    if (!res.ok) { clearStoredAuth(); return null; }
+    const data = await res.json();
+    if (data && data.user) {
+      try { localStorage.setItem(STORAGE_USER, JSON.stringify(data.user)); } catch (e) {}
+    }
+    return data.user;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function requireLoginOrRedirect() {
+  if (!getStoredToken()) {
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.replace('login.html?next=' + next);
+    return false;
+  }
+  const user = await fetchMe();
+  if (!user) {
+    const next = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.replace('login.html?next=' + next);
+    return false;
+  }
+  return true;
+}
+
 /* ---------- 共享布局 ---------- */
 function renderLayout(targetBodyContent, sidebarCats) {
   // 默认 6 个分类 + 动态从 articles 提取的分类，去重排序，截断前 10 个
@@ -87,6 +156,17 @@ function renderLayout(targetBodyContent, sidebarCats) {
   const catsHTML = finalCats.map(c =>
     `<li><a href="search.html?cats=${encodeURIComponent(c)}">${escapeHtml(c)}</a></li>`
   ).join('');
+
+  // 右上角用户区（红框位置），独立分组放到 navbar 右侧
+  // 未登录 → [登录][注册] 两个原生 form-button
+  // 已登录 → "你好 xxx" + [退出]
+  const storedUser = getStoredUser();
+  const userAreaDesktop = storedUser
+    ? `<span class="Smaller">你好，<b>${escapeHtml(storedUser.username)}</b></span> | <form action="#" class="loginform" id="logoutForm"><input type="submit" value="退出" /></form>`
+    : `<form action="login.html" class="loginform"><input type="submit" value="登录" /></form> | <form action="register.html" class="loginform"><input type="submit" value="注册" /></form>`;
+  const userAreaMobile = storedUser
+    ? `<a href="#" id="logoutLink"><b>退出</b></a> / 你好 <b>${escapeHtml(storedUser.username)}</b>`
+    : `<a href="login.html"><b>登录</b></a> / <a href="register.html"><b>注册</b></a>`;
 
   const layout = `
 <div id="menu">
@@ -115,15 +195,18 @@ function renderLayout(targetBodyContent, sidebarCats) {
 <div class="topnav-spacer"></div>
 <div class="top-banner not-print"></div>
 <div class="topnav-container">
-  <div class="not-handset">
-    <form action="search.html" method="get" class="loginform" onsubmit="window.location.href='search.html?q='+encodeURIComponent(this.q.value);return false;">
-      <label><b>搜索：</b> <input type="text" name="q" value="" size="12" id="searchbox" placeholder="关键词..." /></label>
-      <input type="submit" value="搜索" />
-    </form> |
-    <form action="about.html" class="loginform"><input type="submit" value="关于" /></form> |
-    <form action="tags.html" class="loginform"><input type="submit" value="标签" /></form> |
-    <form action="admin.html" class="loginform"><input type="submit" value="写作" /></form> |
-    <form action="index.html" class="loginform"><input type="submit" value="首页" /></form>
+  <div class="not-handset topnav-row">
+    <div class="topnav-left">
+      <form action="search.html" method="get" class="loginform" onsubmit="window.location.href='search.html?q='+encodeURIComponent(this.q.value);return false;">
+        <label><b>搜索：</b> <input type="text" name="q" value="" size="12" id="searchbox" placeholder="关键词..." /></label>
+        <input type="submit" value="搜索" />
+      </form> |
+      <form action="about.html" class="loginform"><input type="submit" value="关于" /></form> |
+      <form action="tags.html" class="loginform"><input type="submit" value="标签" /></form> |
+      <form action="admin.html" class="loginform"><input type="submit" value="写作" /></form> |
+      <form action="index.html" class="loginform"><input type="submit" value="首页" /></form>
+    </div>
+    <div class="topnav-right">${userAreaDesktop}</div>
   </div>
   <div class="handset-only">
     <a href="index.html"><b>首页</b></a> /
@@ -131,6 +214,7 @@ function renderLayout(targetBodyContent, sidebarCats) {
     <a href="about.html"><b>关于</b></a> /
     <a href="tags.html"><b>标签</b></a> /
     <a href="admin.html"><b>写作</b></a>
+    | ${userAreaMobile}
   </div>
 </div>
 ${targetBodyContent}
@@ -144,6 +228,27 @@ ${targetBodyContent}
 </center>
 `;
   document.body.innerHTML = layout;
+
+  // 退出按钮事件绑定（桌面 + 移动两套）
+  const loF = document.getElementById('logoutForm');
+  if (loF) loF.addEventListener('submit', async e => {
+    e.preventDefault();
+    await logoutAndRedirect();
+  });
+  const loL = document.getElementById('logoutLink');
+  if (loL) loL.addEventListener('click', async e => {
+    e.preventDefault();
+    await logoutAndRedirect();
+  });
+}
+
+async function logoutAndRedirect() {
+  const tok = getStoredToken();
+  if (tok) {
+    try { await fetch('/api/users/logout', { method: 'POST', headers: { 'Authorization': 'Bearer ' + tok } }); } catch (e) {}
+  }
+  clearStoredAuth();
+  window.location.href = 'login.html';
 }
 
 /* ---------- 文章列表项 HTML ---------- */
@@ -164,28 +269,110 @@ function articleListingHTML(article) {
   `;
 }
 
-/* ---------- 首页（清爽版：居中搜索 + 精选文章 + 简讯折叠） ---------- */
+/* ---------- 首页：LWN archive 风格，按"期"分组 ----------
+   版式：每期一个带下划线的标题（H3 SummaryHL），下面是该期全部文章的
+   bullet 列表——每篇文章独立一条（不再按 category 桶合并到一行）。
+   按发布时间倒序。顶部保留搜索框用于关键词 + 分类筛选。 */
+
+// ISO 周编号：YYYY 第几周
+function getISOWeek(dateStr) {
+  const d = new Date(dateStr);
+  const target = new Date(d.valueOf());
+  const dayNr = (d.getDay() + 6) % 7; // 周一=0
+  target.setDate(target.getDate() - dayNr + 3); // 跳到当周周四
+  const firstThursday = target.valueOf();
+  target.setMonth(0, 1);
+  if (target.getDay() !== 4) {
+    target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+  }
+  const week = 1 + Math.ceil((firstThursday - target) / 604800000);
+  return [d.getFullYear(), week];
+}
+
+function getISOWeekKey(dateStr) {
+  const [y, w] = getISOWeek(dateStr);
+  return y + '-W' + String(w).padStart(2, '0');
+}
+
+function formatEditionDate(dateStr) {
+  const d = new Date(dateStr);
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+// 列表里的单条文章 bullet：标题链接 + 一行小字元数据
+function homeArticleBullet(article) {
+  const subMark = article.subscription
+    ? '<span class="Subscription" title="订阅精选">$</span> '
+    : '';
+  const cat = escapeHtml(article.category || 'Other');
+  const time = article.time ? ' ' + article.time : '';
+  const dateLine = article.date + time + (article.weekday ? ' (' + article.weekday + ')' : '') + ' by ' + escapeHtml(article.author || 'anonymous');
+  const commentHTML = article.comments > 0
+    ? ' · <a href="article.html?id=' + article.id + '#Comments">评论 ' + article.comments + '</a>'
+    : '';
+  return '<li class="HomeArticle">' + subMark
+    + '<a href="article.html?id=' + article.id + '">' + escapeHtml(article.title) + '</a>'
+    + ' <span class="Smaller HomeArticleMeta">[' + cat + '] &middot; ' + escapeHtml(dateLine) + commentHTML + '</span>'
+    + '</li>';
+}
+
 async function renderHomePage() {
   const articles = await fetchArticles();
-  const featured = articles.filter(a => a.subscription);
-  const briefs = articles.filter(a => !a.subscription);
 
-  const featuredHTML = featured.slice(0, 6).map(articleListingHTML).join('\n');
-  const briefsHTML = briefs.map(articleListingHTML).join('\n');
-  const briefsCount = briefs.length;
+  // 所有出现过的分类（用于搜索框多选）
+  const allCats = [...new Set(articles.map(a => a.category).filter(Boolean))].sort();
 
-  // 取所有出现过的分类，用于筛选
-  const allCats = [...new Set(articles.map(a => a.category))].sort();
+  // 按 ISO 周分组；组内按发布时间倒序（新文章在前）；组间按 key 降序
+  const groupsByKey = new Map();
+  for (const a of articles) {
+    if (!a.date) continue;
+    const key = getISOWeekKey(a.date);
+    if (!groupsByKey.has(key)) groupsByKey.set(key, []);
+    groupsByKey.get(key).push(a);
+  }
+  const sortedKeys = [...groupsByKey.keys()].sort().reverse();
 
-  const mainContent = `
-<div class="maincolumn flexcol">
-  <div class="middlecolumn">
+  // 每期渲染：标题 + 每篇文章独立 bullet 一条
+  const editionsHTML = sortedKeys.map(key => {
+    const list = groupsByKey.get(key).slice().sort((a, b) =>
+      (b.date + ' ' + (b.time || '')).localeCompare(a.date + ' ' + (a.time || ''))
+    );
+    const maxDate = list.reduce((m, a) => (a.date > m ? a.date : m), '');
+    const itemsHTML = list.map(homeArticleBullet).join('\n');
+
+    return `
+      <div class="HomeEdition" id="ed-${key}">
+        <h3 class="SummaryHL"><a name="${key}">OSS Notes Weekly Edition for ${formatEditionDate(maxDate)}</a></h3>
+        <ul class="HomeEditionList">${itemsHTML}</ul>
+      </div>
+    `;
+  }).join('\n');
+
+  const sidebarCats = [...new Set(articles.map(a => a.category).filter(Boolean))];
+
+  // 顶部介绍 + 完整的搜索框（关键词 + 多选分类 + 排序 + 提交）
+  // 分类 checkbox 状态持久化到 localStorage：刷新页面或跨页跳回来都保持用户最近选择
+  const PREFS_KEY = 'oss_home_search_cats';
+  function readHomePrefs() {
+    try { const raw = localStorage.getItem(PREFS_KEY); if (raw) return JSON.parse(raw) || null; }
+    catch (e) {}
+    return null;
+  }
+  const homePrefs = readHomePrefs();
+  const catsCheckboxes = allCats.map(c => {
+    // 首次访问 (null) → 全部 checked；之前存过 → 按 prefs 还原
+    const checked = (homePrefs && (c in homePrefs)) ? (homePrefs[c] ? 'checked' : '') : 'checked';
+    return '<label><input type="checkbox" name="cat" value="' + c + '" ' + checked + ' /> ' + c + '</label>';
+  }).join('');
+
+  const headerHTML = `
+    <div class="PageHeadline"><h1>OSS Notes 文章归档</h1></div>
     <div class="ArticleText"><main>
-
-      <h1 class="HomeTitle">OSS Notes 内容归档</h1>
-      <p>欢迎使用 OSS Notes 全文搜索。下面可以搜索全部文章。
-      <p>检索语法简单直接；关键词大小写不敏感。将关键词加引号（如 "exact phrase"）可做精确匹配。
-
+      <p>这里按发布日期整理 OSS Notes 自创建以来的全部文章。每期一周，最新发布在最上方。点击文章标题阅读全文。
+      <p>也可以前往 <a href="search.html">搜索</a> 页面按关键词与分类筛选；或者 <a href="tags.html">标签页</a> 按主题浏览。
+      <p>
       <div class="lwn-search-box">
         <form onsubmit="return submitSearchForm(this);">
           <div class="lwn-search-row">
@@ -194,12 +381,17 @@ async function renderHomePage() {
           </div>
           <div class="lwn-search-row">
             <span class="lwn-search-label"><b>分类筛选：</b></span>
-            <div class="lwn-cats">
-              ${allCats.map(c => `<label><input type="checkbox" name="cat" value="${c}" checked /> ${c}</label>`).join('')}
+            <div class="lwn-cats" id="homeCatFilters">
+              ${catsCheckboxes}
               <a href="#" onclick="
                 var bs=this.parentNode.querySelectorAll('input[type=checkbox]');
                 var all=Array.from(bs).every(function(b){return b.checked;});
                 bs.forEach(function(b){b.checked=!all;});
+                try {
+                  var p={};
+                  bs.forEach(function(b){p[b.value]=b.checked;});
+                  localStorage.setItem('${PREFS_KEY}', JSON.stringify(p));
+                } catch(e) {}
                 return false;" style="margin-left:0.5em">全部切换</a>
             </div>
           </div>
@@ -213,57 +405,31 @@ async function renderHomePage() {
           </div>
         </form>
       </div>
-
-      <h2 class="Headline">精选文章</h2>
-      <div class="FPBox">
-        <div class="FPLeft">${featuredHTML || '<div class="BlurbListing"><p>暂无精选文章，欢迎<a href="admin.html">投稿</a>。</p></div>'}</div>
-        <div class="FPRight"></div>
-      </div>
-
-      <div class="briefs-toggle-wrap">
-        <button id="briefsToggle" class="briefs-toggle" aria-expanded="false">
-          ▶ 推文（${briefsCount} 条简讯）— 点击展开/收起
-        </button>
-        <div id="briefsPanel" class="briefs-panel" hidden>
-          <div class="FPBox">
-            <div class="FPLeft FPLeft-wide">${briefsHTML || '<div class="BlurbListing"><p>暂无简讯。</p></div>'}</div>
-          </div>
-        </div>
-      </div>
-
+      <p style="color:var(--VLinkColor);font-size:smaller">目前共 ${articles.length} 篇文章，归档自 2026 年 8 月。</p>
+      ${editionsHTML || '<div class="no-results">暂无文章。<a href="admin.html">前往写作入口</a>添加第一篇。</div>'}
     </main></div>
+  `;
+
+  const mainContent = `
+<div class="maincolumn flexcol">
+  <div class="middlecolumn">
+    ${headerHTML}
   </div>
   <div class="rightcol not-print"></div>
 </div>
   `;
-  renderLayout(mainContent, [...new Set(articles.map(a => a.category))]);
+  renderLayout(mainContent, sidebarCats);
 
-  // 折叠区绑定（renderLayout 已替换 body，需异步挂载）
-  setTimeout(() => {
-    const btn = document.getElementById('briefsToggle');
-    const panel = document.getElementById('briefsPanel');
-    if (btn && panel) {
-      btn.addEventListener('click', () => {
-        const isOpen = !panel.hasAttribute('hidden');
-        if (isOpen) {
-          // 关闭
-          panel.setAttribute('hidden', '');
-          btn.setAttribute('aria-expanded', 'false');
-          btn.dataset.open = '0';
-          btn.innerHTML = '▶ ' + btn.dataset.label;
-        } else {
-          // 打开
-          panel.removeAttribute('hidden');
-          btn.setAttribute('aria-expanded', 'true');
-          btn.dataset.open = '1';
-          btn.innerHTML = '▼ ' + btn.dataset.label;
-        }
-      });
-      // 初始化 dataset.label（保存标签文本，去掉首字符 ▶ ）
-      btn.dataset.label = btn.textContent.replace(/^[▶▼]\s*/, '');
-      btn.dataset.open = '0';
-    }
-  }, 0);
+  // 渲染完后绑定首页搜索框 checkbox 的 change 事件 → 同步 localStorage
+  // 这样无论用户点 checkbox 还是点"全部切换"，都能把当前状态保存
+  const cats = document.querySelectorAll('#homeCatFilters input[type=checkbox][name=cat]');
+  cats.forEach(b => {
+    b.addEventListener('change', () => {
+      const prefs = {};
+      cats.forEach(x => { prefs[x.value] = x.checked; });
+      try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch (e) {}
+    });
+  });
 }
 
 /* ---------- 文章详情 ---------- */
@@ -340,18 +506,82 @@ async function renderArticlePage() {
       <div class="BlurbListing">${tagsHTML}</div>
     </main></div>
   </div>
-  <div class="rightcol not-print"></div>
+  <div class="rightcol not-print" id="articleRight"></div>
 </div>
   `;
   renderLayout(mainContent, [...new Set(allArticles.map(a => a.category))]);
   document.title = `${article.title} [OSS Notes]`;
-  // 渲染数学公式（KaTeX）
-  setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
+  // 渲染数学公式（KaTeX）+ 目录（TOC）+ 代码高亮（hljs）
+  setTimeout(() => {
+    const body = document.querySelector('.markdown-body');
+    if (!body) return;
+    renderMathIn(body);
+    const right = document.getElementById('articleRight');
+    if (right) {
+      const tocHTML = buildArticleToc(body);
+      if (tocHTML) right.innerHTML = tocHTML;
+    }
+    highlightCodeBlocks(body);
+  }, 0);
+}
+
+/* ---------- 目录 + 代码高亮 helpers ---------- */
+// 把标题文本生成 URL 友好 slug：保留中文 unicode，空格和特殊字符转 -
+function slugify(text) {
+  let s = String(text || '').trim().toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\u4e00-\u9fff-]+/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return s || ('h-' + Math.random().toString(36).slice(2, 7));
+}
+
+// 在 markdown 渲染后的 DOM 树里找 h2/h3/h4，给它们加 id 并返回目录 HTML
+function buildArticleToc(markdownBodyEl) {
+  if (!markdownBodyEl) return '';
+  // 收集所有 h2/h3/h4 —— 标题层级决定缩进
+  const heads = markdownBodyEl.querySelectorAll('h2, h3, h4');
+  if (!heads.length) return '';
+  const items = [];
+  const used = new Set();
+  heads.forEach(h => {
+    const text = (h.textContent || '').trim();
+    if (!text) return;
+    // 过滤掉评论相关章节
+    if (/评论|发表/.test(text)) return;
+    let baseId = slugify(text);
+    let id = baseId, n = 2;
+    while (used.has(id)) id = baseId + '-' + (n++);
+    used.add(id);
+    h.id = id;
+    // h2 不缩进，h3 缩进中等，h4 缩进最大
+    const cls = h.tagName === 'H2' ? 'article-toc-h2'
+              : h.tagName === 'H3' ? 'article-toc-h3'
+              : 'article-toc-h4';
+    items.push(`<li class="${cls}"><a href="#${encodeURIComponent(id)}">${escapeHtml(text)}</a></li>`);
+  });
+  if (!items.length) return '';
+  return `<div class="SideBox article-toc"><p class="Header">本文目录</p><ul class="NoBullet spacylist">${items.join('')}</ul></div>`;
+}
+
+// 代码块高亮（标记后立刻可调；hljs 还没加载时最多重试 60 次，约 3 秒）
+function highlightCodeBlocks(el) {
+  if (!el) return;
+  function tryHighlight(retries) {
+    if (typeof window.hljs !== 'undefined') {
+      el.querySelectorAll('pre code').forEach(b => {
+        try { window.hljs.highlightElement(b); } catch (e) { /* 静默 */ }
+      });
+    } else if (retries < 60) {
+      setTimeout(() => tryHighlight(retries + 1), 50);
+    }
+  }
+  tryHighlight(0);
 }
 
 /* ---------- 评论 ---------- */
 async function fetchComments(articleId) {
-  const res = await fetch('/api/articles/' + articleId + '/comments');
+  const res = await fetch('/api/articles/' + articleId + '/comments', { cache: 'no-store' });
   return res.json();
 }
 
@@ -644,6 +874,118 @@ function renderAboutPage() {
   setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
 }
 
+/* ---------- 登录 / 注册页面 ----------
+   朴素 form 风格，与 LWN 登录按钮风格一致；登录后跳 next= 或回首页。 */
+
+function getNextFromUrl() {
+  try {
+    const n = new URLSearchParams(window.location.search).get('next');
+    if (n && /^[\w./?=&%+-]+$/.test(n)) return n;
+  } catch (e) {}
+  return 'index.html';
+}
+
+function showFlash(target, msg, type) {
+  target.innerHTML = `<div class="msg ${type}">${escapeHtml(msg)}</div>`;
+}
+
+function renderLoginPage() {
+  const nextUrl = getNextFromUrl();
+  const mainContent = `
+<div class="maincolumn flexcol"><div class="middlecolumn">
+  <div class="PageHeadline"><h1>登录</h1></div>
+  <div class="ArticleText">
+    <div class="login-box">
+      <p>请输入用户名和密码登录 OSS Notes。</p>
+      <input type="text" id="username" placeholder="用户名" autofocus>
+      <input type="password" id="pwd" placeholder="密码">
+      <button class="btn" id="go">登录</button>
+      <div id="msg"></div>
+      <p class="Smaller" style="margin-top:1em">还没有账号？<a href="register.html${nextUrl !== 'index.html' ? '?next=' + encodeURIComponent(nextUrl) : ''}">注册新账号</a></p>
+    </div>
+  </div>
+</div></div>
+  `;
+  renderLayout(mainContent);
+  const msgEl = document.getElementById('msg');
+  document.getElementById('go').addEventListener('click', async () => {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('pwd').value;
+    if (!u || !p) { showFlash(msgEl, '请填写用户名和密码', 'err'); return; }
+    showFlash(msgEl, '登录中...', 'info');
+    try {
+      const res = await fetch('/api/users/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showFlash(msgEl, data.error || '登录失败', 'err'); return; }
+      setStoredAuth(data.token, data.user);
+      window.location.href = nextUrl;
+    } catch (e) {
+      showFlash(msgEl, '网络错误：' + e.message + '（请确认当前页面 URL 是 http://localhost:8080/ 而不是 file://）', 'err');
+    }
+  });
+  // Enter 提交
+  document.getElementById('pwd').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('go').click();
+  });
+  document.getElementById('username').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('pwd').focus();
+  });
+}
+
+function renderRegisterPage() {
+  const nextUrl = getNextFromUrl();
+  const mainContent = `
+<div class="maincolumn flexcol"><div class="middlecolumn">
+  <div class="PageHeadline"><h1>注册新账号</h1></div>
+  <div class="ArticleText">
+    <div class="login-box">
+      <p>用户名仅支持字母、数字、下划线、短横线、点号；密码至少 4 位。</p>
+      <input type="text" id="username" placeholder="用户名" autofocus>
+      <input type="password" id="pwd" placeholder="密码（≥ 4 位）">
+      <input type="password" id="pwd2" placeholder="再次输入密码">
+      <button class="btn" id="go">注册</button>
+      <div id="msg"></div>
+      <p class="Smaller" style="margin-top:1em">已经有账号？<a href="login.html${nextUrl !== 'index.html' ? '?next=' + encodeURIComponent(nextUrl) : ''}">直接登录</a></p>
+    </div>
+  </div>
+</div></div>
+  `;
+  renderLayout(mainContent);
+  const msgEl = document.getElementById('msg');
+  document.getElementById('go').addEventListener('click', async () => {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('pwd').value;
+    const p2 = document.getElementById('pwd2').value;
+    if (!u || !p) { showFlash(msgEl, '请填写用户名和密码', 'err'); return; }
+    if (p !== p2) { showFlash(msgEl, '两次密码不一致', 'err'); return; }
+    showFlash(msgEl, '注册中...', 'info');
+    try {
+      const res = await fetch('/api/users/register', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showFlash(msgEl, data.error || '注册失败', 'err'); return; }
+      // 注册成功自动登录
+      setStoredAuth(data.token, data.user);
+      window.location.href = nextUrl;
+    } catch (e) {
+      // 常见原因：当前 URL 是 file:// 而非 http://，或后端 server 没跑
+      const isFile = window.location.protocol === 'file:';
+      const hint = isFile
+        ? '（检测到当前页面是 file:// 协议，无法请求 localhost。请通过 http://localhost:8080/ 访问。）'
+        : '（请确认后端服务器正在运行：node server.js）';
+      showFlash(msgEl, '网络错误：' + e.message + ' ' + hint, 'err');
+    }
+  });
+  document.getElementById('pwd2').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('go').click();
+  });
+}
+
 /* ---------- 工具函数 ---------- */
 function escapeHtml(str) {
   if (!str) return '';
@@ -658,9 +1000,21 @@ function highlightMatch(text, query) {
   return escaped.replace(re, '<span class="SearchMatch">$1</span>');
 }
 
-/* ---------- 页面路由 ---------- */
+/* ---------- 页面路由 ----------
+   关键：标志首次渲染是否完成，避免 pageshow 在初次加载时重复跑 init。 */
+let _initialRenderDone = false;
+// 需要登录才能访问的页面；公共页面（login/register/admin）独立走流程
+const PROTECTED_PAGES = new Set(['home', 'article', 'search', 'tags', 'about']);
 async function init() {
   const page = document.body.getAttribute('data-page');
+  // 受保护页面：检查 token，没登录就跳 login.html?next=...
+  if (PROTECTED_PAGES.has(page)) {
+    if (!getStoredToken()) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.replace('login.html?next=' + next);
+      return;
+    }
+  }
   try {
     switch (page) {
       case 'home':    await renderHomePage(); break;
@@ -668,6 +1022,8 @@ async function init() {
       case 'search':  await renderSearchPage(); break;
       case 'tags':    await renderTagsPage(); break;
       case 'about':   renderAboutPage(); break;
+      case 'login':   renderLoginPage(); break;
+      case 'register':renderRegisterPage(); break;
       default:        await renderHomePage();
     }
   } catch (e) {
@@ -681,6 +1037,8 @@ async function init() {
         </main></div>
       </div><div class="rightcol not-print"></div></div>
     `);
+  } finally {
+    _initialRenderDone = true;
   }
 }
 
@@ -690,11 +1048,11 @@ if (document.readyState === 'loading') {
   init();
 }
 
-// bfcache 修复：浏览器后退（从 bfcache 恢复）时重新拉数据
-// 否则用户评论完返回文章页仍看到旧评论数
-window.addEventListener('pageshow', e => {
-  if (e.persisted) {
-    // 页面从 bfcache 恢复，重新执行当前页面的渲染逻辑
-    init();
-  }
+// 浏览器后退 / bfcache 恢复时自动刷新数据
+// 旧实现只在 e.persisted === true 时重渲染，导致不支持 bfcache（iOS Safari、
+// 某些页面 unload 事件禁用缓存）的场景下评论数永远不更新。
+// 这里改为：只要不是首次加载（_initialRenderDone === true），就重新拉一遍。
+window.addEventListener('pageshow', () => {
+  if (!_initialRenderDone) return;  // 初次加载交给 DOMContentLoaded / 同步分支
+  requestAnimationFrame(() => init());
 });

@@ -30,12 +30,14 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const PORT = 8080;
 const ROOT = __dirname;
 const ARTICLES_DIR = path.join(ROOT, 'db', 'articles');
 const COMMENTS_DIR = path.join(ROOT, 'db', 'comments');
 const CONFIG_FILE = path.join(ROOT, 'db', 'config.json');
+const USERS_FILE = path.join(ROOT, 'db', 'users.json');
 const PICTURE_DIR = path.join(ROOT, 'picture');
 
 /* ============================================================
@@ -548,6 +550,123 @@ function archivePicturesInContent(content) {
 }
 
 /* ============================================================
+   用户系统 — 注册 + 登录（普通用户），与管理员密码登录并存
+   - 密码用 Node 内置 crypto.scrypt 哈希（不引入 bcrypt）
+   - db/users.json 持久化普通用户
+   - Token 随机 32 字节 hex，内存索引 token → {userId, expiresAt}，TTL 7 天
+   - 旧管理员密码（CONFIG.password）保留，admin.html 用，未走用户 token
+   ============================================================ */
+const USER_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 天
+
+// 启动时从 db/users.json 加载普通用户
+let USERS = []; // [{id, username, passwordHash, salt, createdAt, displayName}, ...]
+let USER_TOKENS = new Map(); // token -> {userId, expiresAt}
+
+function loadUsers() {
+  if (!fs.existsSync(USERS_FILE)) {
+    fs.writeFileSync(USERS_FILE, JSON.stringify({ users: [] }, null, 2));
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
+    USERS = (data.users || []).map(u => ({
+      id: u.id, username: u.username, passwordHash: u.passwordHash, salt: u.salt,
+      createdAt: u.createdAt, displayName: u.displayName || u.username
+    }));
+  } catch (e) {
+    USERS = [];
+  }
+  console.log('  用户索引已加载: ' + USERS.length + ' 个普通用户');
+}
+
+function saveUsers() {
+  fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+  fs.writeFileSync(USERS_FILE, JSON.stringify({ users: USERS }, null, 2));
+}
+
+// 密码哈希：scrypt(密码, salt) → 比较
+function hashPassword(password, salt) {
+  return crypto.scryptSync(password, salt, 64).toString('hex');
+}
+
+function makeSalt() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function createUser(username, password) {
+  if (!username || !password) return { error: '用户名和密码不能为空' };
+  username = String(username).trim();
+  if (username.length < 2 || username.length > 30) return { error: '用户名长度需在 2-30 之间' };
+  if (!/^[A-Za-z0-9_\-.]+$/.test(username)) return { error: '用户名只能包含字母、数字、下划线、短横线、点号' };
+  if (String(password).length < 4) return { error: '密码至少 4 位' };
+  if (String(password).length > 100) return { error: '密码过长（最多 100 位）' };
+  if (USERS.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+    return { error: '该用户名已被注册' };
+  }
+  const salt = makeSalt();
+  const u = {
+    id: USERS.reduce((m, u) => Math.max(m, u.id), 0) + 1,
+    username,
+    passwordHash: hashPassword(password, salt),
+    salt,
+    createdAt: new Date().toISOString(),
+    displayName: username
+  };
+  USERS.push(u);
+  saveUsers();
+  return u;
+}
+
+function verifyPassword(user, password) {
+  const hash = hashPassword(password, user.salt);
+  // 时间常数比较（防止侧信道）
+  const a = Buffer.from(hash, 'hex');
+  const b = Buffer.from(user.passwordHash, 'hex');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function findUser(username) {
+  if (!username) return null;
+  const u = username.toLowerCase();
+  return USERS.find(x => x.username.toLowerCase() === u) || null;
+}
+
+function issueToken(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  USER_TOKENS.set(token, {
+    userId,
+    expiresAt: Date.now() + USER_TOKEN_TTL_MS
+  });
+  // 顺手清理过期 token
+  for (const [k, v] of USER_TOKENS) if (v.expiresAt < Date.now()) USER_TOKENS.delete(k);
+  return token;
+}
+
+function getAuthUser(req) {
+  const auth = req.headers['authorization'] || '';
+  const m = auth.match(/^Bearer\s+([A-Fa-f0-9]{64})$/);
+  if (!m) return null;
+  const tok = m[1];
+  const meta = USER_TOKENS.get(tok);
+  if (!meta) return null;
+  if (meta.expiresAt < Date.now()) { USER_TOKENS.delete(tok); return null; }
+  const u = USERS.find(x => x.id === meta.userId);
+  if (!u) return null;
+  // 返回时不带密码相关字段
+  return { id: u.id, username: u.username, displayName: u.displayName, createdAt: u.createdAt };
+}
+
+function revokeToken(req) {
+  const auth = req.headers['authorization'] || '';
+  const m = auth.match(/^Bearer\s+([A-Fa-f0-9]{64})$/);
+  if (m) USER_TOKENS.delete(m[1]);
+}
+
+function publicUser(u) {
+  return { id: u.id, username: u.username, displayName: u.displayName, createdAt: u.createdAt };
+}
+
+/* ============================================================
    评论数据层 — 每篇文章一个 db/comments/{articleId}.json
    评论 ID 全局自增（避免跨文章 ID 冲突）
    ============================================================ */
@@ -608,16 +727,18 @@ function getComments(articleId) {
 function addComment(articleId, data) {
   const aid = parseInt(articleId);
   if (!ARTICLES.find(a => a.id === aid)) return null;
+  // 先校验内容，再分配 ID，避免空评论浪费 ID
+  const content = (data.content || '').toString().slice(0, 5000);
+  if (!content.trim()) return { error: '评论内容不能为空' };
   const now = new Date();
   const c = {
     id: CURRENT_COMMENT_ID++,
     author: (data.author || 'anonymous').toString().slice(0, 50),
-    content: (data.content || '').toString().slice(0, 5000),
+    content,
     date: data.date || now.toISOString().slice(0, 10),
     time: data.time || now.toISOString().slice(11, 19) + ' UTC',
     weekday: data.weekday || ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][now.getDay()]
   };
-  if (!c.content.trim()) return { error: '评论内容不能为空' };
   const list = COMMENTS_INDEX.get(aid) || [];
   list.push(c);
   list.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
@@ -760,6 +881,42 @@ async function handleAPI(req, res, pathname, method, urlObj) {
     return sendJSON(res, 401, { error: '密码错误' });
   }
 
+  // ---- 用户（普通读者注册/登录，与管理员密码登录并存） ----
+  if (pathname === '/api/users/register' && method === 'POST') {
+    const body = await readJSONBody(req);
+    const u = createUser(body.username, body.password);
+    if (u.error) return sendJSON(res, 400, { error: u.error });
+    const token = issueToken(u.id);
+    return sendJSON(res, 201, { ok: true, token, user: publicUser(u) });
+  }
+
+  if (pathname === '/api/users/login' && method === 'POST') {
+    const body = await readJSONBody(req);
+    const u = findUser(body.username);
+    if (!u) return sendJSON(res, 401, { error: '用户名或密码错误' });
+    if (!verifyPassword(u, String(body.password || ''))) {
+      return sendJSON(res, 401, { error: '用户名或密码错误' });
+    }
+    const token = issueToken(u.id);
+    return sendJSON(res, 200, { ok: true, token, user: publicUser(u) });
+  }
+
+  if (pathname === '/api/users/me' && method === 'GET') {
+    const u = getAuthUser(req);
+    if (!u) return sendJSON(res, 401, { error: '未登录或 token 已失效' });
+    return sendJSON(res, 200, { user: u });
+  }
+
+  if (pathname === '/api/users/logout' && method === 'POST') {
+    revokeToken(req);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // ---- 用户资料（公开：列出用户名，用于评论显示） ----
+  if (pathname === '/api/users' && method === 'GET') {
+    return sendJSON(res, 200, { users: USERS.map(publicUser) });
+  }
+
   // 写操作（需要认证）
   if (pathname === '/api/articles' && method === 'POST') {
     if (!checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
@@ -869,8 +1026,28 @@ function parseMultipart(buf, boundary) {
 
 /* ============================================================
    静态文件服务
+   白名单策略：只允许 / /index.html /about.html /article.html
+   /search.html /tags.html /admin.html，以及 /css/* /js/* /picture/*
+   四类目录下的资源。其他一律 404，防止 /db/config.json、/server.js、
+   /.git/HEAD 等敏感文件被任意下载。
    ============================================================ */
+const STATIC_WHITELIST_HTML = new Set([
+  '/', '/index.html', '/about.html', '/article.html',
+  '/search.html', '/tags.html', '/admin.html',
+  '/login.html', '/register.html'
+]);
+const STATIC_WHITELIST_PREFIX = ['/css/', '/js/', '/picture/'];
+
 function serveStatic(req, res, pathname) {
+  // 白名单：先看 pathname 是否被允许
+  const isAllowed =
+    STATIC_WHITELIST_HTML.has(pathname) ||
+    STATIC_WHITELIST_PREFIX.some(p => pathname.startsWith(p));
+  if (!isAllowed) {
+    res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<h1>404</h1>');
+    return;
+  }
   // 用 path.join 拼到 ROOT 下（path.join 把前导 / 当片段，不会变绝对路径）
   // 然后 path.resolve 拿到标准绝对路径
   // 严格 startsWith 检查防 ../ 逃出
@@ -894,6 +1071,7 @@ function serveStatic(req, res, pathname) {
    ============================================================ */
 initDB();
 initComments();
+loadUsers();
 
 const server = http.createServer(async (req, res) => {
   try {

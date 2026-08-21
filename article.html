@@ -5,14 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>文章详情 [OSS Notes]</title>
 <link rel="stylesheet" href="css/lwn.css">
+<link rel="stylesheet" href="css/github-highlight.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body data-page="article">
 <a name="t"></a>
 <script src="js/marked.min.js"></script>
-<script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<!-- 代码高亮：cdnjs 的浏览器版 highlight.js
+     这个 highlight.min.js 已经内置 35+ 常用语言（go/python/javascript/typescript/bash/shell/yaml/json/sql/diff/markdown/php/ruby/java/cpp/c/css/xml 等），
+     单独加载 languages/*.min.js 不必要还会引起重复注册。 -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </body>
 </html>
