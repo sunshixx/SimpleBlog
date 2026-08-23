@@ -10,16 +10,16 @@
 - 不需要构建工具
 
 ## 启动
-
+ƒ
 在项目目录执行：
 
 ```powershell
 node server.js
 ```
 
-浏览：`http://localhost:8080/`
+浏览：`http://localhost:8088/`
 
-后台写作：`http://localhost:8080/admin.html`
+后台写作：`http://localhost:8088/admin.html`
 
 登陆页面：
 <img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/4e6c742e-0cac-495f-8ea9-80231d8a313f" />
@@ -85,7 +85,7 @@ db/config.json
 2. 复制整个项目目录。
 3. 检查 `db/config.json` 或设置 `SUN_ADMIN_PASSWORD`。
 4. 在项目目录执行 `node server.js`。
-5. 打开 `http://localhost:8080/`。
+5. 打开 `http://localhost:8088/`。
 
 ## 常见问题
 
@@ -94,7 +94,7 @@ db/config.json
 Windows：
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8080 -State Listen
+Get-NetTCPConnection -LocalPort 8088 -State Listen
 Stop-Process -Id <PID> -Force
 node server.js
 ```
@@ -102,7 +102,7 @@ node server.js
 Linux/macOS：
 
 ```bash
-lsof -i :8080
+lsof -i :8088
 kill <PID>
 node server.js
 ```
