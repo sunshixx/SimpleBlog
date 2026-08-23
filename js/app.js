@@ -858,6 +858,19 @@ function renderAboutPage() {
     <div class="PageHeadline"><h1>${t('关于 SUN Notes')}</h1></div>
     <div class="ArticleText"><main>
       <div class="markdown-body">${renderMarkdown(aboutMarkdown)}</div>
+      <div class="heatmap-block">
+        <h3>${t('GitHub 贡献')}</h3>
+        <div class="heatmap-wrap"><div class="heatmap-grid" id="heatmapGrid"></div></div>
+        <div class="heatmap-legend">
+          <span>${t('少')}</span>
+          <span class="cell"></span>
+          <span class="cell l1"></span>
+          <span class="cell l2"></span>
+          <span class="cell l3"></span>
+          <span class="cell l4"></span>
+          <span>${t('多')}</span>
+        </div>
+      </div>
     </main></div>
   </div>
   <div class="rightcol not-print"></div>
@@ -866,6 +879,65 @@ function renderAboutPage() {
   renderLayout(mainContent);
   // 渲染数学公式（KaTeX）
   setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
+  // 写作热力图（绿墙）
+  renderHeatmap();
+}
+
+/* ---------- GitHub 贡献绿墙 ---------- */
+async function renderHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/github-heatmap');
+    if (!res.ok) return;
+    const data = await res.json();
+    const days = data.weeks || []; // 行优先:每周连续 7 天(周日起)
+    if (!days.length) return;
+
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    // 按 7 天分列,得到每列的天数组
+    const cols = [];
+    for (let i = 0; i < days.length; i += 7) cols.push(days.slice(i, i + 7));
+
+    // ---- 月份标签:合并连续同月列,计算 colspan ----
+    const monthCells = [];
+    let cur = null;
+    cols.forEach((col, ci) => {
+      const firstDay = col.find(d => d) || col[0];
+      if (!firstDay) return;
+      const mm = parseInt(firstDay.date.slice(5, 7), 10);
+      if (!cur || cur.mm !== mm) { cur = { mm, label: MONTHS[mm - 1], colspan: 1 }; monthCells.push(cur); }
+      else cur.colspan++;
+    });
+
+    // ---- 每列首个非空天的行号(用于对齐第一行) ----
+    // GitHub 将月份标签绝对定位在 thead,所以这里只需按列分配 colspan
+
+    // ---- 星期标签列:GitHub 桌面只显示 Mon/Wed/Fri ----
+    const showDow = { 0: false, 1: true, 2: false, 3: true, 4: false, 5: true, 6: false };
+
+    // ---- 构建 table ----
+    const thead = '<tr style="height:15px">' +
+      '<td style="width:29px"></td>' +
+      monthCells.map(mc => '<td class="gh-label" colspan="' + mc.colspan + '" style="position:relative"><span class="gh-month" style="position:absolute;top:0">' + mc.label + '</span></td>').join('') +
+      '</tr>';
+
+    const tbody = cols[0].map((_, row) => { // 7 行
+      const dow = '<td class="gh-label gh-dow" style="position:relative"><span class="gh-dow-txt" style="' + (showDow[row] ? 'position:absolute;bottom:-4px' : 'display:none') + '">' + DOWS[row] + '</span></td>';
+      const cells = cols.map((col, ci) => {
+        const d = col[row];
+        if (!d) return '<td class="gh-day" style="visibility:hidden"></td>';
+        const label = d.level === 0 ? 'No contributions on ' + d.date + '.' : d.level + ' contribution' + (d.level > 1 ? 's' : '') + ' on ' + d.date + '.';
+        return '<td class="gh-day l' + d.level + '" data-date="' + d.date + '" title="' + label + '"></td>';
+      }).join('');
+      return '<tr style="height:11px">' + dow + cells + '</tr>';
+    }).join('');
+
+    grid.innerHTML = '<table class="gh-table" style="border-spacing:4px;overflow:hidden;position:relative">' +
+      '<caption class="sr-only">Contribution Graph</caption><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+  } catch (e) { /* 忽略：绿墙失败不影响页面 */ }
 }
 
 /* ---------- 工具函数 ---------- */

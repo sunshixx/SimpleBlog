@@ -50,6 +50,11 @@ function loadConfig() {
   }
 }
 const CONFIG = { ...loadConfig(), password: process.env.SUN_ADMIN_PASSWORD || loadConfig().password };
+// GitHub 用户名(用于 about 页的贡献绿墙),可在 db/config.json 里配 "githubUser"
+const GH_USERNAME = CONFIG.githubUser || 'sunshixx';
+// GitHub 贡献日历代理缓存(10 分钟),避免频繁请求 GitHub
+const GITHUB_HEATMAP_CACHE = { data: null, ts: 0 };
+const GITHUB_HEATMAP_TTL_MS = 10 * 60 * 1000;
 const ADMIN_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
 const ADMIN_TOKENS = new Map();
 const LOGIN_FAILURES = new Map();
@@ -803,9 +808,64 @@ function getBoundary(req) {
 }
 
 /* ============================================================
+   GitHub 贡献日历(绿墙) - 无需认证的代理
+   抓取 github.com/users/{user}/contributions 页面,解析出
+   一年内每一天的贡献等级(0-4),10 分钟缓存。
+   ============================================================ */
+async function fetchGithubHeatmap(user) {
+  if (GITHUB_HEATMAP_CACHE.data && Date.now() - GITHUB_HEATMAP_CACHE.ts < GITHUB_HEATMAP_TTL_MS) {
+    return GITHUB_HEATMAP_CACHE.data;
+  }
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const resp = await fetch(`https://github.com/users/${encodeURIComponent(user)}/contributions`, {
+      headers: { 'user-agent': 'Mozilla/5.0 (SUN Notes blog)' },
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const html = await resp.text();
+    // 每个贡献日一个 <td data-date="YYYY-MM-DD" id="contribution-day-component-{星期}-{周数}" data-level="0-4">
+    // HTML 按列优先输出(先所有周日,再所有周一…),这里解析后转成行优先(每周 7 天连续)。
+    const byWeek = new Map();
+    const re = /data-date="([^"]+)"[^>]*id="contribution-day-component-(\d+)-(\d+)"[^>]*data-level="(\d)"/g;
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const day = parseInt(m[2], 10); // 0=周日 … 6=周六
+      const week = parseInt(m[3], 10);
+      if (!byWeek.has(week)) byWeek.set(week, []);
+      byWeek.get(week)[day] = { date: m[1], level: parseInt(m[4], 10) };
+    }
+    if (!byWeek.size) throw new Error('no contribution data');
+    const days = [];
+    for (let w = 0; w < byWeek.size; w++) days.push(...byWeek.get(w));
+    const totalMatch = html.match(/([\d,]+)\s+contributions?\s+in the last year/i);
+    const payload = {
+      username: user,
+      total: totalMatch ? parseInt(totalMatch[1].replace(/,/g, ''), 10) : null,
+      weeks: days, // 行优先平铺:每周连续 7 天(周日起),共约 53 周
+    };
+    GITHUB_HEATMAP_CACHE.data = payload;
+    GITHUB_HEATMAP_CACHE.ts = Date.now();
+    return payload;
+  } catch (e) {
+    return { error: 'GitHub 贡献数据获取失败: ' + e.message };
+  }
+}
+
+/* ============================================================
    API 路由
    ============================================================ */
 async function handleAPI(req, res, pathname, method, urlObj) {
+  // ---- GitHub 贡献绿墙 ----
+  if (pathname === '/api/github-heatmap' && method === 'GET') {
+    const user = (urlObj.searchParams.get('user') || GH_USERNAME).trim();
+    const payload = await fetchGithubHeatmap(user);
+    if (payload.error) return sendJSON(res, 502, payload);
+    return sendJSON(res, 200, payload);
+  }
+
   // ---- 文章 ----
   if (pathname === '/api/articles' && method === 'GET') {
     refreshArticlesIndex();

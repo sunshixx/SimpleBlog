@@ -956,3 +956,86 @@ br.clear { clear: both; }
   display: inline-block;
   margin-right: 0.3em;
 }
+
+/* ---------- GitHub 贡献绿墙 ---------- */
+.heatmap-block {
+  margin: 1.2em 0 0.4em 0;
+  padding: 1em 1em 0.8em 1em;
+  border: 1px solid var(--FormBG);
+  border-radius: 0.5em;
+  background: var(--MidColBG);
+}
+.heatmap-block h3 {
+  margin: 0 0 0.6em 0;
+  font-size: 1.05em;
+}
+.heatmap-wrap {
+  overflow-x: auto;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.heatmap-grid .gh-table {
+  border-collapse: separate;
+  font-size: 12px;
+  color: var(--VLinkColor);
+}
+.heatmap-grid .gh-table .gh-day {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+}
+/* GitHub 官方贡献档位配色(浅色) */
+.heatmap-grid .gh-table .l0 { background: var(--TTBGColor); }
+.heatmap-grid .gh-table .l1 { background: #9be9a8; }
+.heatmap-grid .gh-table .l2 { background: #40c463; }
+.heatmap-grid .gh-table .l3 { background: #30a14e; }
+.heatmap-grid .gh-table .l4 { background: #216e39; }
+/* 月份/星期标签 */
+.heatmap-grid .gh-table .gh-label {
+  font-size: 12px;
+  color: var(--VLinkColor);
+  font-weight: normal;
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .heatmap-grid .gh-table .l0 { background: var(--TTBGColor); }
+  .heatmap-grid .gh-table .l1 { background: #0e4429; }
+  .heatmap-grid .gh-table .l2 { background: #006d32; }
+  .heatmap-grid .gh-table .l3 { background: #26a641; }
+  .heatmap-grid .gh-table .l4 { background: #39d353; }
+}
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: x-small;
+  color: var(--VLinkColor);
+  justify-content: flex-end;
+  margin-top: 0.3em;
+}
+.heatmap-legend .cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+  background: var(--TTBGColor);
+}
+.heatmap-legend .cell.l1 { background: #9be9a8; }
+.heatmap-legend .cell.l2 { background: #40c463; }
+.heatmap-legend .cell.l3 { background: #30a14e; }
+.heatmap-legend .cell.l4 { background: #216e39; }
+@media (prefers-color-scheme: dark) {
+  .heatmap-legend .cell.l1 { background: #0e4429; }
+  .heatmap-legend .cell.l2 { background: #006d32; }
+  .heatmap-legend .cell.l3 { background: #26a641; }
+  .heatmap-legend .cell.l4 { background: #39d353; }
+}
