@@ -22,9 +22,9 @@ node server.js
 后台写作：`http://localhost:8088/admin.html`
 
 登陆页面：
-<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/4e6c742e-0cac-495f-8ea9-80231d8a313f" />
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/5610fc95-eb06-4273-8287-f5ebc64cc764" />
 浏览页面：
-<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/603f7026-3635-4807-ac79-11d55de71640" />
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/270cae20-0404-4eb0-8bb6-a1f22eb290c0" />
 写作页面：
 
 <img width="625" height="623" alt="image" src="https://github.com/user-attachments/assets/75a587d5-1758-4671-9623-da960acc20fe" />
