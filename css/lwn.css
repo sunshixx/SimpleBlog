@@ -20,7 +20,7 @@
   --ButtonHoverColor: #ffcc99;
   --MaxTextWidth: 65;
   --MinTextWidth: 40;
-  --FontFamily: inherit;
+  --FontFamily: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   --QuoteFontStyle: normal;
   --QuoteFontWeight: normal;
   --QTextColor: darkred;
@@ -497,7 +497,7 @@ DIV.top-banner {
     text-align: right;
     float: left;
     padding-left: 60px;
-    font-family: sans-serif;
+    font-family: var(--FontFamily), serif;
     line-height: 0.8;
     padding-top: 0.3em;
   }
@@ -510,7 +510,7 @@ DIV.top-banner {
     position: absolute;
     top: 85px;
     left: 5px;
-    font-family: sans-serif;
+    font-family: var(--FontFamily), serif;
   }
 
   img.sslogo { display: none; }
