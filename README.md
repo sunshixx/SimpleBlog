@@ -17,12 +17,23 @@
 node server.js
 ```
 
-浏览：`http://localhost:8080/`
+浏览：`http://localhost:8088/`
 
-后台写作：`http://localhost:8080/admin.html`
+后台写作：`http://localhost:8088/admin.html`
 
 登陆页面如图所示：
 <img width="1920" height="827" alt="image" src="https://github.com/user-attachments/assets/1269771d-27bb-4f52-b398-5d5a56f7f49e" />
+
+## 中英文切换
+
+站点支持中文 / English 双语切换：
+
+- 页面右上角（或手机端导航栏）有语言切换按钮，点击即时切换，无需刷新
+- 语言偏好保存在浏览器 `localStorage`，下次访问自动沿用
+- 覆盖导航、首页、搜索、标签、关于、文章详情、写作入口等全部界面文案
+- 侧边栏分类名也会随语言切换（数据存储与 URL 参数仍使用中文，仅显示层翻译）
+
+如需添加新的界面文案，在 `js/i18n.js` 的 `en` 字典中补充对应条目即可；`t()` 在未找到翻译时会回退显示中文原文。
 
 ## 权限模型
 
@@ -45,7 +56,7 @@ db/
   comments/*.json     每篇文章一个评论文件
 picture/              已归档图片
 css/                  样式和图片资源
-js/                   页面逻辑和 Markdown 渲染库
+js/                   页面逻辑、i18n 字典和 Markdown 渲染库
 ```
 
 文章正文中的非 `picture/` 本地图片引用，在发布时会被复制到 `picture/` 并重写引用。源文件不会被移动。
@@ -78,16 +89,16 @@ db/config.json
 2. 复制整个项目目录。
 3. 检查 `db/config.json` 或设置 `SUN_ADMIN_PASSWORD`。
 4. 在项目目录执行 `node server.js`。
-5. 打开 `http://localhost:8080/`。
+5. 打开 `http://localhost:8088/`。
 
 ## 常见问题
 
-### 8080 端口被占用
+### 8088 端口被占用
 
 Windows：
 
 ```powershell
-Get-NetTCPConnection -LocalPort 8080 -State Listen
+Get-NetTCPConnection -LocalPort 8088 -State Listen
 Stop-Process -Id <PID> -Force
 node server.js
 ```
@@ -95,7 +106,7 @@ node server.js
 Linux/macOS：
 
 ```bash
-lsof -i :8080
+lsof -i :8088
 kill <PID>
 node server.js
 ```
