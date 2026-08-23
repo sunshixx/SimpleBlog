@@ -134,7 +134,6 @@ async function showEditor() {
         <input type="file" id="insertFile" accept="image/*" multiple style="display:none">
         <input type="button" id="insertPicBtn" value="插入图片">
         <input type="text" id="insertPath" value="picture" size="14" title="上传图片保存路径">
-        <span class="Smaller">粘贴板图片自动进 <code>picture/</code>；本地上传按上面路径；发布时后台会把所有非 picture/ 的引用归档到 picture/。</span>
         <span id="insertMsg" class="Smaller" style="margin-left:0.4em"></span>
       </div>
       <div class="editor-split">

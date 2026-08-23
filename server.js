@@ -148,6 +148,14 @@ function parseArticleFile(filePath, fileName) {
     const m = fileName.match(/^(\d+)/);
     meta.id = m ? parseInt(m[1], 10) : 0;
   }
+  // date + time（如 "2026-08-21" + "08:38:10 UTC"）→ 标准 ISO 时间，避免浏览器 new Date() 解析失败
+  function isoFromDateTime(dateStr, timeStr) {
+    const t = String(timeStr || '00:00:00').replace(/\s+UTC$/i, '').trim();
+    const s = `${String(dateStr || '')}T${t || '00:00:00'}`;
+    const d = new Date(/Z$|[+-]\d{2}:\d{2}$/.test(s) ? s : s + 'Z');
+    return isNaN(d.getTime()) ? '' : d.toISOString();
+  }
+
   // 标准化字段
   const article = {
     id: parseInt(meta.id, 10) || 0,
@@ -158,7 +166,7 @@ function parseArticleFile(filePath, fileName) {
     date: String(meta.date || ''),
     time: String(meta.time || ''),
     weekday: String(meta.weekday || ''),
-    updatedAt: String(meta.updatedAt || ((meta.date || '') + (meta.time ? ' ' + meta.time : ''))),
+    updatedAt: String(meta.updatedAt || isoFromDateTime(meta.date, meta.time)),
     comments: parseInt(meta.comments, 10) || 0,
     tags: Array.isArray(meta.tags) ? meta.tags.map(tag => String(tag)) : (meta.tags ? [String(meta.tags)] : []),
     summary: String(meta.summary || ''),

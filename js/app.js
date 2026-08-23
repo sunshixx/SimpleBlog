@@ -393,7 +393,10 @@ async function renderArticlePage() {
     .map(x => `<li><a href="article.html?id=${x.article.id}">${escapeHtml(x.article.title)}</a></li>`)
     .join('');
   const relatedHTML = related ? `<section class="related-articles"><h3 class="Headline">相关文章</h3><ul>${related}</ul></section>` : '';
-  const updatedText = article.updatedAt ? new Date(article.updatedAt).toLocaleString('zh-CN') : formatDate(article.date, article.time, article.weekday);
+  const parsedUpdated = article.updatedAt ? new Date(article.updatedAt) : null;
+  const updatedText = parsedUpdated && !isNaN(parsedUpdated.getTime())
+    ? parsedUpdated.toLocaleString('zh-CN')
+    : formatDate(article.date, article.time, article.weekday);
   const returnHTML = returnUrl ? ` | <a href="${escapeHtml(returnUrl)}">返回搜索结果</a>` : '';
 
   const mainContent = `
