@@ -39,6 +39,16 @@ window.I18N = (function () {
       'SUN Notes · 写作入口': 'SUN Notes · Write',
       '返回首页': 'Back to home',
 
+      /* ---- 分类 ---- */
+      '负载均衡': 'Load Balancing',
+      '网络': 'Networking',
+      '内核': 'Kernel',
+      '安全': 'Security',
+      '性能调优': 'Performance',
+      '开发实践': 'Development',
+      '随笔': 'Essays',
+      '其他': 'Other',
+
       /* ---- 首页 ---- */
       'SUN Notes 文章归档': 'SUN Notes Article Archive',
       '这里按发布日期整理 SUN Notes 自创建以来的全部文章。最新发布在最上方。点击文章标题阅读全文。':

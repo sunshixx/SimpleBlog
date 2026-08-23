@@ -95,7 +95,7 @@ function renderLayout(targetBodyContent, sidebarCats) {
   const merged = [...new Set([...defaultCats, ...(sidebarCats || [])])];
   const finalCats = merged.slice(0, 10);
   const catsHTML = finalCats.map(c =>
-    `<li><a href="search.html?cats=${encodeURIComponent(c)}">${escapeHtml(c)}</a></li>`
+    `<li><a href="search.html?cats=${encodeURIComponent(c)}">${escapeHtml(t(c))}</a></li>`
   ).join('');
 
   const langSwitchLabel = window.I18N.lang === 'zh' ? 'EN' : '中文';
@@ -169,7 +169,7 @@ ${targetBodyContent}
 /* ---------- 文章列表项 HTML ---------- */
 function articleListingHTML(article) {
   const subMark = article.subscription ? '[<span class="Subscription">$</span>] ' : '';
-  const metaLine = `<span class="Smaller">[${article.category}] ${formatDate(article.date, article.time, article.weekday)} by ${article.author}</span>`;
+  const metaLine = `<span class="Smaller">[${t(article.category)}] ${formatDate(article.date, article.time, article.weekday)} by ${article.author}</span>`;
   const fullStory = article.comments > 0
     ? `<a href="article.html?id=${article.id}">${t('阅读全文')}</a> (<a href="article.html?id=${article.id}#Comments">${t('评论: {n}', { n: article.comments })}</a>)`
     : `<a href="article.html?id=${article.id}">${t('暂无评论')}</a>`;
@@ -221,7 +221,7 @@ function homeArticleBullet(article) {
   const subMark = article.subscription
     ? '<span class="Subscription" title="' + t('订阅精选') + '">$</span> '
     : '';
-  const cat = escapeHtml(article.category || 'Other');
+  const cat = escapeHtml(t(article.category || '其他'));
   const time = article.time ? ' ' + article.time : '';
   const dateLine = article.date + time + (article.weekday ? ' (' + article.weekday + ')' : '') + ' by ' + escapeHtml(article.author || 'anonymous');
   const commentHTML = article.comments > 0
@@ -279,7 +279,7 @@ async function renderHomePage() {
   const catsCheckboxes = allCats.map(c => {
     // 首次访问 (null) → 全部 checked；之前存过 → 按 prefs 还原
     const checked = (homePrefs && (c in homePrefs)) ? (homePrefs[c] ? 'checked' : '') : 'checked';
-    return '<label><input type="checkbox" name="cat" value="' + c + '" ' + checked + ' /> ' + c + '</label>';
+    return '<label><input type="checkbox" name="cat" value="' + c + '" ' + checked + ' /> ' + t(c) + '</label>';
   }).join('');
 
   const headerHTML = `
@@ -392,7 +392,7 @@ async function renderArticlePage() {
   const tagsHTML = (article.tags || []).map(t =>
     `<a href="tags.html?tag=${t}" class="tag-badge">${t}</a>`
   ).join('');
-  const categoryHTML = `<a class="category-badge" href="search.html?cats=${encodeURIComponent(article.category || '')}">${escapeHtml(article.category)}</a>`;
+  const categoryHTML = `<a class="category-badge" href="search.html?cats=${encodeURIComponent(article.category || '')}">${escapeHtml(t(article.category || ''))}</a>`;
   const related = allArticles
     .filter(a => a.id !== article.id)
     .map(a => ({ article: a, score: (a.category === article.category ? 3 : 0) + (a.tags || []).filter(t => (article.tags || []).includes(t)).length }))
@@ -731,7 +731,7 @@ async function renderSearchPage() {
           <div class="search-result">
             <h3 class="Headline">${subMark}<a href="article.html?id=${a.id}&from=${encodeURIComponent(window.location.href)}" style="color:inherit;text-decoration:none;">${highlightMatch(a.title, query)}</a></h3>
             <div class="Smaller" style="margin:0.2em 0 0.6em 0;color:var(--VLinkColor)">
-              [${a.category}] ${formatDate(a.date, a.time, a.weekday)} by ${a.author}${a.comments ? ' · <a href="article.html?id='+a.id+'#Comments" style="color:var(--VLinkColor)">' + t('评论 {n}', { n: a.comments }) + '</a>' : ''}
+              [${t(a.category)}] ${formatDate(a.date, a.time, a.weekday)} by ${a.author}${a.comments ? ' · <a href="article.html?id='+a.id+'#Comments" style="color:var(--VLinkColor)">' + t('评论 {n}', { n: a.comments }) + '</a>' : ''}
             </div>
             <p style="margin:0 0 0.4em 0">${highlightMatch(a.summary, query)}</p>
             <a href="article.html?id=${a.id}&from=${encodeURIComponent(window.location.href)}">${t('阅读全文')}</a>
@@ -760,7 +760,7 @@ async function renderSearchPage() {
               ${allCats.map(c => {
                 const lc = c.toLowerCase();
                 const checked = hasFilter || hasCatsParam ? (catsSet.has(lc) ? 'checked' : '') : 'checked';
-                return `<label><input type="checkbox" name="cat" value="${c}" ${checked} /> ${c}</label>`;
+                return `<label><input type="checkbox" name="cat" value="${c}" ${checked} /> ${t(c)}</label>`;
               }).join('')}
               <a href="#" onclick="
                 var bs=this.parentNode.querySelectorAll('input[type=checkbox]');
@@ -824,7 +824,7 @@ async function renderTagsPage() {
     const catList = Object.entries(catMap)
       .sort((a, b) => b[1].length - a[1].length)
       .map(([c, articles]) => `
-        <h3 class="SummaryHL"><a href="search.html?cats=${encodeURIComponent(c)}">${c}</a> (${articles.length})</h3>
+        <h3 class="SummaryHL"><a href="search.html?cats=${encodeURIComponent(c)}">${t(c)}</a> (${articles.length})</h3>
         <div class="BlurbListing">${articles.slice(0, 3).map(articleListingHTML).join('\n')}</div>
       `).join('');
 
