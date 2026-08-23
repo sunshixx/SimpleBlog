@@ -3,7 +3,7 @@
  * 零依赖 Node.js 后端：文件系统数据层 + 图片库 + REST API
  *
  * 启动: node server.js
- * 端口: 8080
+ * 端口: 8088
  * 数据:
  *   db/articles/{id}.md   每篇文章一个文件（带 YAML frontmatter）
  *   db/config.json        密码等配置
@@ -32,7 +32,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const PORT = 8080;
+const PORT = 8088;
 const ROOT = __dirname;
 const ARTICLES_DIR = path.join(ROOT, 'db', 'articles');
 const COMMENTS_DIR = path.join(ROOT, 'db', 'comments');
