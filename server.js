@@ -806,6 +806,40 @@ function getBoundary(req) {
    API 路由
    ============================================================ */
 async function handleAPI(req, res, pathname, method, urlObj) {
+  // ---- 写作热力图 ----
+  // 聚合最近一年内每一天的活动计数（发布 + 编辑 + 评论），供绿墙组件渲染。
+  if (pathname === '/api/heatmap' && method === 'GET') {
+    refreshArticlesIndex();
+    const days = {};
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yearAgo = new Date(today);
+    yearAgo.setDate(yearAgo.getDate() - 364);
+    function bump(dateStr) {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      if (isNaN(d) || d < yearAgo || d > today) return;
+      const key = d.toISOString().slice(0, 10);
+      days[key] = (days[key] || 0) + 1;
+    }
+    for (const a of ARTICLES) {
+      bump(a.date);        // 发布
+      bump(a.updatedAt);   // 编辑
+    }
+    for (const [aid, list] of COMMENTS_INDEX) {
+      if (!ARTICLES.find(a => a.id === parseInt(aid))) continue;
+      for (const c of list) if (!c.hidden) bump(c.date);  // 评论
+    }
+    // 补齐空日期，保证前端 365 格对齐
+    const weeks = [];
+    for (let d = new Date(today); d >= yearAgo; d.setDate(d.getDate() - 1)) {
+      const key = d.toISOString().slice(0, 10);
+      weeks.push({ date: key, count: days[key] || 0 });
+    }
+    weeks.reverse();
+    return sendJSON(res, 200, { yearAgo: yearAgo.toISOString().slice(0, 10), today: today.toISOString().slice(0, 10), weeks });
+  }
+
   // ---- 文章 ----
   if (pathname === '/api/articles' && method === 'GET') {
     refreshArticlesIndex();

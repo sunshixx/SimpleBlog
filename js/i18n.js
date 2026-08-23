@@ -38,6 +38,9 @@ window.I18N = (function () {
       '本站文章版权归原作者所有': 'All articles are copyright their respective authors',
       'SUN Notes · 写作入口': 'SUN Notes · Write',
       '返回首页': 'Back to home',
+      '写作活动': 'Writing Activity',
+      '少': 'Less',
+      '多': 'More',
 
       /* ---- 分类 ---- */
       '负载均衡': 'Load Balancing',

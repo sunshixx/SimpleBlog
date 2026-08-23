@@ -956,3 +956,60 @@ br.clear { clear: both; }
   display: inline-block;
   margin-right: 0.3em;
 }
+
+/* ---------- 写作热力图（GitHub 风格绿墙） ---------- */
+.heatmap-block {
+  margin: 1.2em 0 0.4em 0;
+  padding: 1em 1em 0.8em 1em;
+  border: 1px solid var(--FormBG);
+  border-radius: 0.5em;
+  background: var(--MidColBG);
+}
+.heatmap-block h3 {
+  margin: 0 0 0.6em 0;
+  font-size: 1.05em;
+}
+.heatmap-wrap {
+  overflow-x: auto;
+}
+.heatmap-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 10px);
+  grid-auto-columns: 10px;
+  gap: 3px;
+  width: max-content;
+  padding-bottom: 0.4em;
+}
+.heatmap-grid .cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--TTBGColor);
+}
+.heatmap-grid .cell.l1 { background: #c6e48b; }
+.heatmap-grid .cell.l2 { background: #7bc96f; }
+.heatmap-grid .cell.l3 { background: #239a3b; }
+.heatmap-grid .cell.l4 { background: #196127; }
+.heatmap-grid .cell.day { background: var(--LinkColor); }
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: x-small;
+  color: var(--VLinkColor);
+  justify-content: flex-end;
+  margin-top: 0.3em;
+}
+.heatmap-legend .cell {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  display: inline-block;
+}
+@media (prefers-color-scheme: dark) {
+  .heatmap-grid .cell.l1 { background: #2b4b33; }
+  .heatmap-grid .cell.l2 { background: #3a6b46; }
+  .heatmap-grid .cell.l3 { background: #4a8c58; }
+  .heatmap-grid .cell.l4 { background: #6cbf77; }
+}

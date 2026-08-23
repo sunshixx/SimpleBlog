@@ -858,6 +858,19 @@ function renderAboutPage() {
     <div class="PageHeadline"><h1>${t('关于 SUN Notes')}</h1></div>
     <div class="ArticleText"><main>
       <div class="markdown-body">${renderMarkdown(aboutMarkdown)}</div>
+      <div class="heatmap-block">
+        <h3>${t('写作活动')}</h3>
+        <div class="heatmap-wrap"><div class="heatmap-grid" id="heatmapGrid"></div></div>
+        <div class="heatmap-legend">
+          <span>${t('少')}</span>
+          <span class="cell"></span>
+          <span class="cell l1"></span>
+          <span class="cell l2"></span>
+          <span class="cell l3"></span>
+          <span class="cell l4"></span>
+          <span>${t('多')}</span>
+        </div>
+      </div>
     </main></div>
   </div>
   <div class="rightcol not-print"></div>
@@ -866,6 +879,24 @@ function renderAboutPage() {
   renderLayout(mainContent);
   // 渲染数学公式（KaTeX）
   setTimeout(() => renderMathIn(document.querySelector('.markdown-body')), 0);
+  // 写作热力图（绿墙）
+  renderHeatmap();
+}
+
+/* ---------- 写作热力图（GitHub 风格绿墙） ---------- */
+async function renderHeatmap() {
+  const grid = document.getElementById('heatmapGrid');
+  if (!grid) return;
+  try {
+    const res = await fetch('/api/heatmap');
+    if (!res.ok) return;
+    const data = await res.json();
+    const cells = data.weeks.map(w => {
+      const lv = w.count === 0 ? '' : (w.count >= 9 ? ' l4' : w.count >= 6 ? ' l3' : w.count >= 3 ? ' l2' : ' l1');
+      return '<span class="cell' + lv + '" title="' + w.date + ' · ' + w.count + '"></span>';
+    }).join('');
+    grid.innerHTML = cells;
+  } catch (e) { /* 忽略：绿墙失败不影响页面 */ }
 }
 
 /* ---------- 工具函数 ---------- */
