@@ -26,6 +26,7 @@ node server.js
 浏览页面：
 <img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/603f7026-3635-4807-ac79-11d55de71640" />
 写作页面：
+
 <img width="625" height="623" alt="image" src="https://github.com/user-attachments/assets/75a587d5-1758-4671-9623-da960acc20fe" />
 
 
