@@ -10,7 +10,7 @@
 - 不需要构建工具
 
 ## 启动
-
+ƒ
 在项目目录执行：
 
 ```powershell
@@ -21,8 +21,14 @@ node server.js
 
 后台写作：`http://localhost:8088/admin.html`
 
-登陆页面如图所示：
-<img width="1920" height="827" alt="image" src="https://github.com/user-attachments/assets/1269771d-27bb-4f52-b398-5d5a56f7f49e" />
+登陆页面：
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/4e6c742e-0cac-495f-8ea9-80231d8a313f" />
+浏览页面：
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/603f7026-3635-4807-ac79-11d55de71640" />
+写作页面：
+
+<img width="625" height="623" alt="image" src="https://github.com/user-attachments/assets/75a587d5-1758-4671-9623-da960acc20fe" />
+
 
 ## 中英文切换
 
@@ -66,9 +72,11 @@ js/                   页面逻辑、i18n 字典和 Markdown 渲染库
 1. 打开 `admin.html` 并输入管理员密码。
 2. 填写标题、分类、作者、摘要和正文。
 3. 编辑器支持 Markdown 实时预览、数学公式、图片粘贴和图片上传。
-4. 草稿会自动保存到浏览器本地存储，也可以手动点击“保存草稿”。
-5. 点击“预览文章”检查最终效果。
-6. 点击“发布文章”写入 `db/articles/{id}.md`。
+4. markdown格式支持补全功能。
+5. 代码块内支持代码高亮以及代码补全功能。
+6. 草稿会自动保存到浏览器本地存储，也可以手动点击“保存草稿”。
+7. 点击“预览文章”检查最终效果。
+8. 点击“发布文章”写入 `db/articles/{id}.md`。
 
 草稿只保存在当前浏览器，不会出现在公开首页，也不会写入服务器。
 
