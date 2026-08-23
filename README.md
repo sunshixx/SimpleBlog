@@ -22,13 +22,12 @@ node server.js
 后台写作：`http://localhost:8088/admin.html`
 
 登陆页面：
-<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/5610fc95-eb06-4273-8287-f5ebc64cc764" />
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/b29633c3-0682-423b-94cf-ec695e95e1f8" />
 浏览页面：
-<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/270cae20-0404-4eb0-8bb6-a1f22eb290c0" />
+<img width="1280" height="744" alt="image" src="https://github.com/user-attachments/assets/92262027-1473-4e5d-8966-062e7f968809" />
 写作页面：
 
-<img width="625" height="623" alt="image" src="https://github.com/user-attachments/assets/75a587d5-1758-4671-9623-da960acc20fe" />
-
+<img width="628" height="615" alt="image" src="https://github.com/user-attachments/assets/be65ce80-907d-46b8-b795-e9263c502c6e" />
 
 ## 中英文切换
 
