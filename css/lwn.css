@@ -396,6 +396,17 @@ DIV.topnav-container {
 }
 .topnav-left { flex: 1 1 auto; min-width: 0; }
 .topnav-right { flex: 0 0 auto; white-space: nowrap; }
+/* 语言切换按钮 */
+a.lang-switch, .topnav-container a.lang-switch {
+  color: var(--LinkColor);
+  font-weight: bold;
+  text-decoration: none;
+  border: 1px solid var(--FormBG);
+  border-radius: 0.5em;
+  padding: 0.1em 0.6em;
+  margin-left: 0.6em;
+}
+a.lang-switch:hover { background: var(--OldSnippetBorder); }
 @media (max-width: 48em) {
   .topnav-row { flex-direction: column; align-items: flex-start; gap: 0.4em; }
   .topnav-right { width: 100%; }
