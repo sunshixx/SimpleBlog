@@ -26,7 +26,7 @@ function authedFetch(url, opts) {
       // token 失效，清掉让用户重新登录
       TOKEN = ''; localStorage.removeItem('oss_token');
       location.reload();
-      throw new Error('未授权');
+      throw new Error(t('未授权'));
     }
     return r;
   });
@@ -51,31 +51,34 @@ function shell(inner) {
 <div id="menu">
   <a href="index.html"><img class="logo" src="css/logo.jpg" alt="SUN Notes"><span class="logo">SUN<br>.Notes</span></a>
   <div class="navmenu-container"><ul class="navmenu">
-    <li><a class="navmenu" href="admin.html"><b>写作</b></a></li>
+    <li><a class="navmenu" href="admin.html"><b>${t('写作')}</b></a></li>
   </ul></div>
 </div>
 <div class="topnav-spacer"></div>
 <div class="topnav-container">
-  <a href="index.html"><b>← 返回博客</b></a> |
-  <a href="#" id="logout"><b>退出</b></a>
+  <a href="index.html"><b>← ${t('返回博客')}</b></a> |
+  <a href="#" id="logout"><b>${t('退出')}</b></a> |
+  <a href="#" id="langToggle"><b>${I18N.lang === 'en' ? 'CN' : 'EN'}</b></a>
 </div>
 ${inner}
-<br clear="all"><center><span class="ReallySmall">SUN Notes · 写作入口</span></center>`;
+<br clear="all"><center><span class="ReallySmall">SUN Notes · ${t('写作入口')}</span></center>`;
   const lo = document.getElementById('logout');
   if (lo) lo.addEventListener('click', async e=>{e.preventDefault();try{await fetch('/api/logout',{method:'POST',headers:authHNoCT()});}catch(err){} TOKEN='';localStorage.removeItem('oss_token');window.location.href='index.html';});
+  const lt = document.getElementById('langToggle');
+  if (lt) lt.addEventListener('click', e=>{e.preventDefault(); I18N.toggle();});
 }
 
 /* ---------- 登录页 ---------- */
 function showLogin() {
   shell(`
 <div class="maincolumn flexcol"><div class="middlecolumn">
-  <div class="PageHeadline"><h1>写作入口</h1></div>
+  <div class="PageHeadline"><h1>${t('写作入口')}</h1></div>
   <div class="ArticleText">
     <div class="login-box">
-      <p><b>请输入管理密码</b></p>
-      <input type="password" id="pwd" placeholder="密码" autofocus
+      <p><b>${t('请输入管理密码')}</b></p>
+      <input type="password" id="pwd" placeholder="${t('密码')}" autofocus
              onkeydown="if(event.key==='Enter')document.getElementById('go').click()">
-      <button class="btn" id="go">进入</button>
+      <button class="btn" id="go">${t('进入')}</button>
       <div id="emsg"></div>
     </div>
   </div>
@@ -83,7 +86,7 @@ function showLogin() {
   `);
   document.getElementById('go').addEventListener('click', async ()=>{
     if (await login(document.getElementById('pwd').value)) await showEditor();
-    else document.getElementById('emsg').innerHTML='<div class="msg err">密码错误</div>';
+    else document.getElementById('emsg').innerHTML='<div class="msg err">' + t('密码错误') + '</div>';
   });
 }
 
@@ -91,78 +94,79 @@ function showLogin() {
 async function showEditor() {
   shell(`
 <div class="maincolumn flexcol"><div class="middlecolumn">
-  <div class="PageHeadline"><h1>写文章</h1></div>
+  <div class="PageHeadline"><h1>${t('写文章')}</h1></div>
   <div class="ArticleText editor-page">
     <div id="flash"></div>
     <div class="editor-form">
-      <label>标题</label>
-      <input type="text" id="title" placeholder="文章标题">
+      <label>${t('标题')}</label>
+      <input type="text" id="title" placeholder="${t('文章标题')}">
 
       <div class="row2">
         <div>
-          <label>大类（方便索引）</label>
+          <label>${t('大类（方便索引）')}</label>
           <select id="category" style="width:100%;padding:6px;font-size:medium;border-radius:0.5em;border:1px solid var(--FormBG);box-sizing:border-box;">
-            <option>Kernel</option>
-            <option>Security</option>
-            <option>Development</option>
-            <option>Distributions</option>
-            <option>Briefs</option>
-            <option>Announcements</option>
+            <option>负载均衡</option>
+            <option>网络</option>
+            <option>内核</option>
+            <option>安全</option>
+            <option>性能调优</option>
+            <option>开发实践</option>
+            <option>随笔</option>
           </select>
         </div>
         <div>
-          <label>作者</label>
+          <label>${t('作者')}</label>
           <input type="text" id="author" value="admin">
         </div>
         <div>
-          <label>[$] 订阅标记</label>
+          <label>${t('[$] 订阅标记')}</label>
           <select id="subscription" style="width:100%;padding:6px;font-size:medium;border-radius:0.5em;border:1px solid var(--FormBG);box-sizing:border-box;">
-            <option value="false">否</option>
-            <option value="true">是</option>
+            <option value="false">${t('否')}</option>
+            <option value="true">${t('是')}</option>
           </select>
         </div>
       </div>
 
-      <label>标签（逗号分隔，方便索引）</label>
+      <label>${t('标签（逗号分隔，方便索引）')}</label>
       <input type="text" id="tags" placeholder="kernel, release, linux">
 
-      <label>摘要（显示在列表页）</label>
-      <input type="text" id="summary" placeholder="一句话摘要">
+      <label>${t('摘要（显示在列表页）')}</label>
+      <input type="text" id="summary" placeholder="${t('一句话摘要')}">
 
-      <label>正文（Markdown）</label>
+      <label>${t('正文（Markdown）')}</label>
       <div class="insert-toolbar">
         <input type="file" id="insertFile" accept="image/*" multiple style="display:none">
-        <input type="button" id="insertPicBtn" value="插入图片">
-        <input type="text" id="insertPath" value="picture" size="14" title="上传图片保存路径">
+        <input type="button" id="insertPicBtn" value="${t('插入图片')}">
+        <input type="text" id="insertPath" value="picture" size="14" title="${t('上传图片保存路径')}">
         <span id="insertMsg" class="Smaller" style="margin-left:0.4em"></span>
       </div>
       <div class="editor-split">
         <div>
-          <div class="preview-label">编辑器（输入 Markdown 符号或代码字符可补全，Ctrl+Space 可打开全部提示）</div>
+          <div class="preview-label">${t('编辑器（输入 Markdown 符号或代码字符可补全，Ctrl+Space 可打开全部提示）')}</div>
           <div class="autocomplete-wrap">
-            <textarea id="content" placeholder="在此输入 Markdown 正文... 可直接 Ctrl+V 粘贴图片，Ctrl+Enter 发布"></textarea>
+            <textarea id="content" placeholder="${t('在此输入 Markdown 正文... 可直接 Ctrl+V 粘贴图片，Ctrl+Enter 发布')}"></textarea>
             <div id="autocompleteList" class="autocomplete-list" role="listbox"></div>
           </div>
         </div>
         <div>
-          <div class="preview-label">实时预览</div>
+          <div class="preview-label">${t('实时预览')}</div>
           <div class="preview-box markdown-body" id="preview"></div>
         </div>
       </div>
 
       <input type="hidden" id="editId" value="">
       <div class="btn-row">
-        <button class="btn" id="publish">发布文章</button>
-        <button class="btn" id="saveDraft" type="button">保存草稿</button>
-        <button class="btn" id="previewArticle" type="button">预览文章</button>
-        <button class="btn" id="clear">清空</button>
+        <button class="btn" id="publish">${t('发布文章')}</button>
+        <button class="btn" id="saveDraft" type="button">${t('保存草稿')}</button>
+        <button class="btn" id="previewArticle" type="button">${t('预览文章')}</button>
+        <button class="btn" id="clear">${t('清空')}</button>
         <span id="saved" class="Smaller"></span>
       </div>
     </div>
 
-    <h2 class="Headline draft-heading" style="margin-top:2em;">待发布草稿</h2>
+    <h2 class="Headline draft-heading" style="margin-top:2em;">${t('待发布草稿')}</h2>
     <div id="draftList"></div>
-    <h2 id="publishedHeading" class="Headline" style="margin-top:2em;">已发布文章</h2>
+    <h2 id="publishedHeading" class="Headline" style="margin-top:2em;">${t('已发布文章')}</h2>
     <div id="alist"></div>
 
   </div>
@@ -175,7 +179,7 @@ async function showEditor() {
   setupAutocomplete(ta);
   const renderPreview = () => {
     // 编辑器内预览也走一遍 picture 路径重写（与正文页一致）
-    const md = ta.value || '*预览区为空*';
+    const md = ta.value || t('*预览区为空*');
     const rewritten = md
       .replace(/!\[([^\]]*)\]\((\.?\/)?picture\/([^)]+)\)/g, '![$1](/picture/$3)')
       .replace(/(<img\s+[^>]*?src=["'])(\.?\/)?picture\/([^"']+)(["'][^>]*?>)/g, '$1/picture/$3$4');
@@ -256,11 +260,11 @@ function saveDraft(showMessage) {
     writeDrafts(drafts.slice(0, 20));
     clearRecoveryDraft();
     const saved = document.getElementById('saved');
-    if (saved) saved.textContent = '草稿已保存 ' + new Date().toLocaleTimeString();
-    flash('草稿已保存，已放入下方“待发布草稿”列表', 'ok');
+    if (saved) saved.textContent = t('草稿已保存 ') + new Date().toLocaleTimeString();
+    flash(t('草稿已保存，已放入下方“待发布草稿”列表'), 'ok');
     loadList();
   } catch (e) {
-    if (showMessage !== false) flash('草稿保存失败：' + e.message, 'err');
+    if (showMessage !== false) flash(t('草稿保存失败：') + e.message, 'err');
   }
 }
 
@@ -274,7 +278,7 @@ function restoreRecoveryDraft() {
     if (!raw) return;
     const draft = JSON.parse(raw);
     if (!draft.content && !draft.title) return;
-    if (!confirm('发现未保存的编辑内容（' + new Date(draft.savedAt).toLocaleString() + '），是否恢复？')) {
+    if (!confirm(t('发现未保存的编辑内容（{t}），是否恢复？', { t: new Date(draft.savedAt).toLocaleString() }))) {
       clearRecoveryDraft();
       return;
     }
@@ -282,7 +286,7 @@ function restoreRecoveryDraft() {
       if (draft[name] !== undefined) document.getElementById(name).value = draft[name];
     });
     document.getElementById('editId').value = draft.articleId || '';
-    document.getElementById('publish').textContent = draft.articleId ? '更新文章 #' + draft.articleId : '发布文章';
+    document.getElementById('publish').textContent = draft.articleId ? t('更新文章 #') + draft.articleId : t('发布文章');
     document.getElementById('content').dispatchEvent(new Event('input'));
     markDirty(true);
     clearRecoveryDraft();
@@ -308,19 +312,19 @@ function loadDraft(id) {
   });
   document.getElementById('editId').value = articleId;
   activeDraftId = id;
-  document.getElementById('publish').textContent = articleId ? '更新文章 #' + articleId : '发布文章';
+  document.getElementById('publish').textContent = articleId ? t('更新文章 #') + articleId : t('发布文章');
   document.getElementById('content').dispatchEvent(new Event('input'));
   markDirty(false);
-  flash('正在编辑待发布草稿', 'ok');
+  flash(t('正在编辑待发布草稿'), 'ok');
   window.scrollTo(0, 0);
 }
 
 function previewArticle() {
-  const title = document.getElementById('title').value.trim() || '未命名文章';
+  const title = document.getElementById('title').value.trim() || t('未命名文章');
   const preview = document.getElementById('preview').innerHTML;
   const win = window.open('', '_blank');
-  if (!win) { flash('预览窗口被浏览器拦截，请允许弹窗', 'err'); return; }
-  win.document.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + ' - SUN Notes 预览</title><link rel="stylesheet" href="css/lwn.css"><main style="max-width:900px;margin:2em auto;padding:1em"><h1>' + esc(title) + '</h1><div class="markdown-body">' + preview + '</div></main>');
+  if (!win) { flash(t('预览窗口被浏览器拦截，请允许弹窗'), 'err'); return; }
+  win.document.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + t(' - SUN Notes 预览') + '</title><link rel="stylesheet" href="css/lwn.css"><main style="max-width:900px;margin:2em auto;padding:1em"><h1>' + esc(title) + '</h1><div class="markdown-body">' + preview + '</div></main>');
   win.document.close();
 }
 
@@ -370,7 +374,7 @@ function setupAutocomplete(ta) {
     bash: ['#!/usr/bin/env bash', 'echo ', 'if [  ]; then\n  \nfi', 'for item in "${items[@]}"; do\n  \ndone'],
     shell: ['#!/usr/bin/env bash', 'echo ', 'if [  ]; then\n  \nfi', 'for item in "${items[@]}"; do\n  \ndone']
   };
-  const markdownSuggestions = ['# ', '## ', '### ', '- ', '1. ', '> ', '**粗体**', '*斜体*', '[链接文字](https://)', '![图片说明](picture/)', '```javascript\n\n```', '---'];
+  const markdownSuggestions = ['# ', '## ', '### ', '- ', '1. ', '> ', t('**粗体**'), t('*斜体*'), t('[链接文字](https://)'), t('![图片说明](picture/)'), '```javascript\n\n```', '---'];
   let suggestions = [];
   let selected = 0;
   let replaceStart = 0;
@@ -505,7 +509,7 @@ let draftTimer = null;
 
 function markDirty(on) {
   isDirty = !!on;
-  document.title = (isDirty ? '● ' : '') + '写作 - SUN Notes';
+  document.title = (isDirty ? '● ' : '') + t('写作 - SUN Notes');
   // 已发布文章列表里高亮正在编辑的那篇
   document.querySelectorAll('.list-item').forEach(el => el.classList.remove('editing'));
   const id = document.getElementById('editId') && document.getElementById('editId').value;
@@ -575,7 +579,7 @@ function setupFormGuards(ta) {
   beforeUnloadHandler = e => {
     if (isDirty) {
       e.preventDefault();
-      e.returnValue = '有未保存的修改，确定离开吗？';
+      e.returnValue = t('有未保存的修改，确定离开吗？');
       return e.returnValue;
     }
   };
@@ -586,13 +590,13 @@ function setupFormGuards(ta) {
 }
 
 function clearForm() {
-  if (isDirty && !confirm('当前有未保存的修改，确定要清空吗？')) return;
+  if (isDirty && !confirm(t('当前有未保存的修改，确定要清空吗？'))) return;
   // 解绑旧的 beforeunload，由 setupFormGuards 重新绑定
   if (beforeUnloadHandler) window.removeEventListener('beforeunload', beforeUnloadHandler);
 
   document.getElementById('editId').value='';
   document.getElementById('title').value='';
-  document.getElementById('category').value='Kernel';
+  document.getElementById('category').value='内核';
   // 作者记忆：恢复上次的作者
   document.getElementById('author').value = localStorage.getItem('oss_last_author') || 'admin';
   document.getElementById('subscription').value='false';
@@ -607,11 +611,11 @@ function clearForm() {
   activeDraftId = '';
   // 按钮文案回到"发布"
   const btn = document.getElementById('publish');
-  btn.textContent = '发布文章';
+  btn.textContent = t('发布文章');
   btn.disabled = false;
   // 重新设置守卫（清空后重新监听）
   setupFormGuards(ta);
-  flash('已清空','ok');
+  flash(t('已清空'),'ok');
 }
 
 /* ---------- 发布/保存（带防重复提交） ---------- */
@@ -622,7 +626,7 @@ let lastFp = '';
 async function doPublish() {
   // 防重复锁：上一次发布未结束则忽略
   if (isPublishing) {
-    flash('正在保存中，请勿重复点击...', 'err');
+    flash(t('正在保存中，请勿重复点击...'), 'err');
     return;
   }
 
@@ -636,14 +640,14 @@ async function doPublish() {
     summary: document.getElementById('summary').value,
     content: document.getElementById('content').value
   };
-  if (!data.title || !data.content) { flash('标题和正文不能为空','err'); return; }
-  if (!data.author.trim()) { flash('作者不能为空','err'); return; }
+  if (!data.title || !data.content) { flash(t('标题和正文不能为空'),'err'); return; }
+  if (!data.author.trim()) { flash(t('作者不能为空'),'err'); return; }
 
   // 前端额外保险：仅【新建模式】下做 5 秒同内容指纹拦截；编辑模式跳过
   const fp = (data.title+'|'+data.content).slice(0, 200);
   const now = Date.now();
   if (!id && now - lastPublishedAt < 5000 && lastFp === fp) {
-    flash('刚刚已发布相同内容，请稍后再试', 'err');
+    flash(t('刚刚已发布相同内容，请稍后再试'), 'err');
     return;
   }
 
@@ -651,13 +655,13 @@ async function doPublish() {
   const btn = document.getElementById('publish');
   const oldText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = id ? '保存中...' : '发布中...';
+  btn.textContent = id ? t('保存中...') : t('发布中...');
 
   try {
     const r = await api.save(data, id||null);
     if (r && r._duplicate) {
       // 后端命中防重复：返回的是已有文章，前端只提示，不动表单
-      flash('检测到重复内容，已忽略（已有 #'+r.id+'）', 'err');
+      flash(t('检测到重复内容，已忽略（已有 #{id}）', { id: r.id }), 'err');
     } else {
       // 记住作者
       if (data.author.trim()) localStorage.setItem('oss_last_author', data.author.trim());
@@ -667,17 +671,17 @@ async function doPublish() {
         activeDraftId = '';
       }
       const savedId = r?.id || id;
-      flash((id ? '已更新！ID=' + savedId : '已发布！ID=' + savedId)
-        + ' <a href="#" onclick="editArt(' + savedId + ');return false">立即编辑</a>', 'ok');
+      flash((id ? t('已更新！ID={id}', { id: savedId }) : t('已发布！ID={id}', { id: savedId }))
+        + ' <a href="#" onclick="editArt(' + savedId + ');return false">' + t('立即编辑') + '</a>', 'ok');
       // 重置表单到"新建"状态
       document.getElementById('editId').value='';
       document.getElementById('title').value='';
       document.getElementById('tags').value='';
       document.getElementById('summary').value='';
       document.getElementById('content').value='';
-      document.getElementById('preview').innerHTML='*预览区为空*';
+      document.getElementById('preview').innerHTML=t('*预览区为空*');
       document.getElementById('content').dispatchEvent(new Event('input')); // 触发 autoResize
-      btn.textContent = '发布文章';  // 按钮回到新建文案
+      btn.textContent = t('发布文章');  // 按钮回到新建文案
       // 仅新建模式记录指纹（编辑模式更新成功不记录，避免下次编辑被误杀）
       if (!id) {
         lastPublishedAt = Date.now();
@@ -691,13 +695,13 @@ async function doPublish() {
       markDirty(false);
     }
   } catch(e) {
-    flash('保存失败：'+e.message, 'err');
+    flash(t('保存失败：')+e.message, 'err');
   } finally {
     isPublishing = false;
     btn.disabled = false;
     // finally 不要粗暴覆盖 textContent（成功路径已正确设置）
-    if (!btn.textContent || btn.textContent === '保存中...' || btn.textContent === '发布中...') {
-      btn.textContent = document.getElementById('editId').value ? ('更新文章 #'+document.getElementById('editId').value) : '发布文章';
+    if (!btn.textContent || btn.textContent === t('保存中...') || btn.textContent === t('发布中...')) {
+      btn.textContent = document.getElementById('editId').value ? (t('更新文章 #')+document.getElementById('editId').value) : t('发布文章');
     }
   }
 }
@@ -708,37 +712,37 @@ async function loadList() {
   const draftEl = document.getElementById('draftList');
   const publishedHeading = document.getElementById('publishedHeading');
   if (publishedHeading) publishedHeading.style.display = 'block';
-  el.innerHTML='<p>加载中...</p>';
+  el.innerHTML='<p>'+t('加载中...')+'</p>';
   const drafts = readDrafts();
   if (draftEl) {
     draftEl.innerHTML = drafts.length ? '<div class="draft-list">' + drafts.map(d => `
       <div class="list-item draft-item" data-draft-id="${esc(d.id)}">
-        <div><b>${esc(d.title || '未命名草稿')}</b>
-          <span class="Smaller">${new Date(d.savedAt).toLocaleString()} · 待发布</span></div>
-        <div class="act"><a href="#" onclick="loadDraft('${esc(d.id)}');return false"><b>继续编辑</b></a>
-          <a href="#" onclick="if(confirm('确定删除这个待发布草稿吗？'))deleteDraft('${esc(d.id)}');return false" style="color:#a44">删除草稿</a></div>
-      </div>`).join('') + '</div>' : '<p class="draft-empty">暂无待发布草稿。</p>';
+        <div><b>${esc(d.title || t('未命名草稿'))}</b>
+          <span class="Smaller">${new Date(d.savedAt).toLocaleString()} · ${t('待发布')}</span></div>
+        <div class="act"><a href="#" onclick="loadDraft('${esc(d.id)}');return false"><b>${t('继续编辑')}</b></a>
+          <a href="#" onclick="if(confirm('${t('确定删除这个待发布草稿吗？')}'))deleteDraft('${esc(d.id)}');return false" style="color:#a44">${t('删除草稿')}</a></div>
+      </div>`).join('') + '</div>' : '<p class="draft-empty">'+t('暂无待发布草稿。')+'</p>';
   }
   let list;
   try {
     list = await api.list();
   } catch (e) {
-    el.innerHTML = '<p class="msg err">已发布文章加载失败：' + esc(e.message) + '</p>';
+    el.innerHTML = '<p class="msg err">'+t('已发布文章加载失败：') + esc(e.message) + '</p>';
     return;
   }
-  if (!list.length) { el.innerHTML='<p>暂无文章。</p>'; return; }
+  if (!list.length) { el.innerHTML='<p>'+t('暂无文章。')+'</p>'; return; }
   el.innerHTML = list.map(a=>`
     <div class="list-item" data-id="${a.id}">
       <div>
         <b>[${
           a.id}] ${esc(a.title)}</b>
-        <span class="Smaller">[${a.category}] ${a.date} by ${a.author} · 评论 ${a.comments||0}</span>
+        <span class="Smaller">[${a.category}] ${a.date} by ${a.author} · ${t('评论')} ${a.comments||0}</span>
       </div>
       <div class="act">
-        <a href="#" onclick="editArt(${a.id});return false"><b>更新文章</b></a>
-        <a href="article.html?id=${a.id}" target="_blank">查看</a>
-        <a href="#" onclick="toggleComments(${a.id}, this);return false">评论</a>
-        <a href="#" onclick="delArt(${a.id});return false" style="color:red">删除</a>
+        <a href="#" onclick="editArt(${a.id});return false"><b>${t('更新文章')}</b></a>
+        <a href="article.html?id=${a.id}" target="_blank">${t('查看')}</a>
+        <a href="#" onclick="toggleComments(${a.id}, this);return false">${t('评论')}</a>
+        <a href="#" onclick="delArt(${a.id});return false" style="color:red">${t('删除')}</a>
       </div>
       <div class="comment-mgr" id="cmt-mgr-${a.id}" style="display:none"></div>
     </div>`).join('');
@@ -757,9 +761,9 @@ async function editArt(id) {
   // 切换前 if dirty 提示
   const curId = document.getElementById('editId').value;
   if (isDirty && curId && curId !== String(id)) {
-    if (!confirm('当前有未保存的修改，切换到其他文章会丢失。确定切换吗？')) return;
+    if (!confirm(t('当前有未保存的修改，切换到其他文章会丢失。确定切换吗？'))) return;
   } else if (isDirty && !curId) {
-    if (!confirm('当前有未保存的修改，切换到编辑模式会丢弃。确定切换吗？')) return;
+    if (!confirm(t('当前有未保存的修改，切换到编辑模式会丢弃。确定切换吗？'))) return;
   }
   const a = await api.get(id);
   document.getElementById('editId').value=a.id;
@@ -773,30 +777,30 @@ async function editArt(id) {
   // 重新触发预览（含 picture 路径重写 + autoResize）
   document.getElementById('content').dispatchEvent(new Event('input'));
   // 编辑模式：按钮文案明确表示是更新哪篇
-  document.getElementById('publish').textContent = '更新文章 #'+id;
+  document.getElementById('publish').textContent = t('更新文章 #')+id;
   // 编辑模式下重置防重复指纹历史，避免保存时被前端误杀
   lastFp = '';
   lastPublishedAt = 0;
   markDirty(false);
-  flash('正在编辑 #'+id,'ok');
+  flash(t('正在编辑 #{id}', { id: id }),'ok');
   window.scrollTo(0,0);
 }
 
 async function delArt(id) {
-  if(!confirm('确定删除这篇文章吗？\n注意：对应的评论也会一并清理。')) return;
+  if(!confirm(t('确定删除这篇文章吗？\n注意：对应的评论也会一并清理。'))) return;
   await api.del(id);
   // 如果正在编辑的就是这篇，强制清空表单（不弹未保存确认，因为用户已经确认删除）
   if (document.getElementById('editId').value === String(id)) {
     forceClearForm();
   }
-  flash('已删除','ok');
+  flash(t('已删除'),'ok');
   await loadList();
 }
 
 function forceClearForm() {
   document.getElementById('editId').value='';
   document.getElementById('title').value='';
-  document.getElementById('category').value='Kernel';
+  document.getElementById('category').value='内核';
   document.getElementById('author').value = localStorage.getItem('oss_last_author') || 'admin';
   document.getElementById('subscription').value='false';
   document.getElementById('tags').value='';
@@ -805,7 +809,7 @@ function forceClearForm() {
   ta.value=''; ta.dispatchEvent(new Event('input'));
   lastFp = ''; lastPublishedAt = 0;
   const btn = document.getElementById('publish');
-  btn.textContent = '发布文章'; btn.disabled = false;
+  btn.textContent = t('发布文章'); btn.disabled = false;
   markDirty(false);
 }
 
@@ -815,15 +819,15 @@ async function toggleComments(id, linkEl) {
   if (!box) return;
   if (box.style.display !== 'none' && box.innerHTML) {
     box.style.display = 'none';
-    linkEl.textContent = '评论';
+    linkEl.textContent = t('评论');
     return;
   }
-  linkEl.textContent = '收起评论';
+  linkEl.textContent = t('收起评论');
   box.style.display = 'block';
-  box.innerHTML = '<p class="pic-hint">加载中...</p>';
+  box.innerHTML = '<p class="pic-hint">'+t('加载中...')+'</p>';
   const list = await api.commentList(id);
   if (!list.length) {
-    box.innerHTML = '<p class="pic-hint"><i>暂无评论。</i></p>';
+    box.innerHTML = '<p class="pic-hint"><i>'+t('暂无评论。')+'</i></p>';
     return;
   }
   box.innerHTML = list.map(c => `
@@ -831,9 +835,9 @@ async function toggleComments(id, linkEl) {
       <div>
         <b>${esc(c.author)}</b>
         <span class="Smaller">${esc(c.date)} ${esc(c.time)}</span>
-        ${c.hidden ? '<span class="Smaller" style="color:#a44">（已隐藏）</span>' : ''}
-        <a href="#" onclick="toggleCommentHidden(${id}, ${c.id}, ${!c.hidden});return false" style="margin-left:0.5em">${c.hidden ? '恢复' : '隐藏'}</a>
-        <a href="#" onclick="delCmt(${id}, ${c.id});return false" style="color:#a44;float:right">删除</a>
+        ${c.hidden ? '<span class="Smaller" style="color:#a44">'+t('（已隐藏）')+'</span>' : ''}
+        <a href="#" onclick="toggleCommentHidden(${id}, ${c.id}, ${!c.hidden});return false" style="margin-left:0.5em">${c.hidden ? t('恢复') : t('隐藏')}</a>
+        <a href="#" onclick="delCmt(${id}, ${c.id});return false" style="color:#a44;float:right">${t('删除')}</a>
       </div>
       <div class="comment-mgr-body">${esc(c.content)}</div>
     </div>
@@ -845,7 +849,7 @@ async function toggleCommentHidden(articleId, commentId, hidden) {
     method: 'PUT', headers: authH(), body: JSON.stringify({ hidden })
   }).then(res => res.json());
   if (r && !r.error) {
-    flash(hidden ? '评论已隐藏' : '评论已恢复', 'ok');
+    flash(hidden ? t('评论已隐藏') : t('评论已恢复'), 'ok');
     const link = document.querySelector(`.list-item[data-id="${articleId}"] .act a[onclick*="toggleComments"]`);
     const box = document.getElementById('cmt-mgr-' + articleId);
     if (box) { box.style.display = 'none'; box.innerHTML = ''; }
@@ -854,16 +858,16 @@ async function toggleCommentHidden(articleId, commentId, hidden) {
 }
 
 async function delCmt(articleId, commentId) {
-  if (!confirm('确定删除这条评论吗？')) return;
+  if (!confirm(t('确定删除这条评论吗？'))) return;
   const r = await api.commentDel(articleId, commentId);
   if (r.ok) {
-    flash('已删除评论','ok');
+    flash(t('已删除评论'),'ok');
     // 局部刷新评论区
     const linkEl = document.querySelector(`.list-item[data-id="${articleId}"] .act a[onclick*="toggleComments"]`);
     if (linkEl) await toggleComments(articleId, linkEl);
     await loadList(); // 刷新评论数
   } else {
-    flash('删除失败：' + (r.error || ''), 'err');
+    flash(t('删除失败：') + (r.error || ''), 'err');
   }
 }
 
@@ -891,13 +895,13 @@ async function handlePaste(e) {
       // 粘贴永远进 picture/
       const ext = (file.name.match(/\.[a-zA-Z0-9]+$/) || ['.' + (file.type.split('/')[1] || 'png')])[0];
       const name = 'paste-' + Date.now() + ext;
-      setInsertMsg('粘贴上传中...', 'info');
+      setInsertMsg(t('粘贴上传中...'), 'info');
       const r = await uploadOne(file, name, 'picture');
       if (r && r.ref) {
         insertMarkdownAtCursor(ta, `![${r.name.replace(/\.[^.]+$/, '')}](${r.ref})\n`);
-        setInsertMsg('已粘贴：' + r.name, 'ok');
+        setInsertMsg(t('已粘贴：') + r.name, 'ok');
       } else {
-        setInsertMsg('粘贴失败：' + (r && r.error || '未知错误'), 'err');
+        setInsertMsg(t('粘贴失败：') + (r && r.error || t('未知错误')), 'err');
       }
     }
   }
@@ -909,7 +913,7 @@ async function handleInsertFiles(e) {
   if (!files || !files.length) return;
   const ta = document.getElementById('content');
   const targetDir = (document.getElementById('insertPath').value || 'picture').trim() || 'picture';
-  setInsertMsg('上传中...', 'info');
+  setInsertMsg(t('上传中...'), 'info');
   let ok = 0, fail = 0;
   for (const f of Array.from(files)) {
     const r = await uploadOne(f, f.name, targetDir);
@@ -919,7 +923,7 @@ async function handleInsertFiles(e) {
     } else { fail++; }
   }
   e.target.value = ''; // 清空以便下次选同名文件
-  setInsertMsg((ok ? '已插入 ' + ok + ' 张' : '失败') + (fail ? '（' + fail + ' 张失败）' : ''),
+  setInsertMsg((ok ? t('已插入 {n} 张', { n: ok }) : t('失败')) + (fail ? t('（{n} 张失败）', { n: fail }) : ''),
                ok && !fail ? 'ok' : (ok ? 'info' : 'err'));
 }
 
@@ -962,4 +966,12 @@ function insertMarkdownAtCursor(ta, text) {
 
 /* ---------- 启动 ---------- */
 // 每次打开或刷新 admin.html 都重新要求输入管理员密码；token 只用于当前页面的管理请求。
+document.title = window.I18N.lang === 'en' ? 'Write - SUN Notes' : '写作 - SUN Notes';
 showLogin();
+
+// 语言切换后按当前登录状态重新渲染
+window.onI18nChange = function () {
+  document.title = window.I18N.lang === 'en' ? 'Write - SUN Notes' : '写作 - SUN Notes';
+  if (isAuthed()) showEditor();
+  else showLogin();
+};

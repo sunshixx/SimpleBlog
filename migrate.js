@@ -7,7 +7,7 @@
  *   id: 1
  *   title: 文章标题
  *   subscription: false
- *   category: Kernel
+ *   category: 内核
  *   author: admin
  *   date: 2026-08-21
  *   time: 10:00:00 UTC
