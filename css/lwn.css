@@ -265,7 +265,7 @@ IMG.photo { max-width: 100%; }
   padding-left: calc((50% * 0) - (var(--MaxTextWidth) * 1em) / 2);
 }
 
-div.middlecolumn { flex: 5; }
+div.middlecolumn { flex: 5; min-width: 0; }
 div.rightcol { padding-top: 5em; flex: 0 1 content; }
 
 div.flexcol {
@@ -409,7 +409,7 @@ DIV.top-banner {
 /* ---------- Desktop (>=48em) Layout ---------- */
 
 @media screen and (min-width: 48em) {
-  .rightcol { flex: 0; min-width: 120px; }
+  .rightcol { flex: 0; min-width: clamp(200px, 22vw, 340px); }
   .rightcol_wpage { display: none; }
   .header, .content { padding-left: 2em; padding-right: 2em; }
   div.maincolumn { padding-left: 10em; }
@@ -635,23 +635,24 @@ br.clear { clear: both; }
 /* ============================================================
    文章右侧 TOC（按 markdown 标题自动生成）— LWN 朴素风
    ============================================================ */
-.article-toc { font-size: smaller; }
+.article-toc { font-size: 1.35em; position: sticky; top: 50px; }
 .article-toc p.Header {
   font-weight: bold;
   text-indent: 0;
   margin-left: 0;
-  padding: 4px 6px;
+  padding: 8px 12px;
   background: var(--NewLeftColBG);
   border-radius: 0.3em;
+  font-size: 1.05em;
 }
-.article-toc ul { margin: 0.4em 0 0.6em 0.4em; padding-left: 0; }
-.article-toc ul li { margin-bottom: 0.25em; line-height: 1.45; }
+.article-toc ul { margin: 0.6em 0 0.9em 0.4em; padding-left: 0; }
+.article-toc ul li { margin-bottom: 0.35em; line-height: 1.55; }
 /* H2 主级：不缩进 */
-.article-toc li.article-toc-h2 { font-size: 1em; font-weight: bold; }
+.article-toc li.article-toc-h2 { font-size: 1.15em; font-weight: bold; }
 /* H3 二级：中等缩进 */
-.article-toc li.article-toc-h3 { margin-left: 0.7em; font-size: 0.95em; }
+.article-toc li.article-toc-h3 { margin-left: 0.7em; font-size: 1.02em; }
 /* H4 三级：更大缩进 + 更小字号 */
-.article-toc li.article-toc-h4 { margin-left: 1.4em; font-size: 0.9em; color: var(--VLinkColor); }
+.article-toc li.article-toc-h4 { margin-left: 1.4em; font-size: 0.95em; color: var(--VLinkColor); }
 .article-toc a:link, .article-toc a:visited { color: var(--LinkColor); text-decoration: none; }
 .article-toc a:hover { background-color: var(--HeadlineBG); color: var(--LinkColor); }
 .article-toc .active {
@@ -682,7 +683,7 @@ br.clear { clear: both; }
   padding:3px 8px; border:1px solid #aaa; border-radius:0;
   background:#eee; color:#111; font:inherit;
 }
-#readingProgress { position:fixed; top:0; left:0; z-index:101; width:0; height:3px; background:var(--LinkColor); }
+#readingProgress { position:fixed; top:0; left:0; z-index:101; width:0; height:4.5px; background:var(--LinkColor); box-shadow: 0 1px 3px rgba(0,0,0,0.35); }
 .related-articles { margin-top:2em; }
 .related-articles ul { margin-top:0.4em; }
 .markdown-body table {
