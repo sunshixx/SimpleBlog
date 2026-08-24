@@ -15,10 +15,11 @@
     border-radius:0.5em; font-size:medium; box-sizing:border-box;
   }
   .editor-form textarea {
-    width:100%; min-height:320px; padding:8px; border:1px solid var(--FormBG);
+    width:100%; height:100%; min-height:0; padding:8px; border:1px solid var(--FormBG);
     border-radius:0.5em; font-family:monospace; font-size:14px; box-sizing:border-box;
+    resize:none; overflow-y:auto;
   }
-  .autocomplete-wrap { position:relative; }
+  .autocomplete-wrap { position:relative; flex:1; min-height:0; display:flex; flex-direction:column; }
   .autocomplete-list {
     display:none; position:absolute; z-index:5; left:8px; bottom:8px;
     min-width:180px; max-width:calc(100% - 16px); max-height:180px;
@@ -30,11 +31,15 @@
   .autocomplete-item.active, .autocomplete-item:hover { background:var(--HeadlineBG); }
   .row2 { display:flex; gap:1em; }
   .row2 > div { flex:1; }
-  .editor-split { display:flex; gap:1em; margin-top:0.3em; }
-  .editor-split > div { flex:1; min-width:0; }
+  .editor-split {
+    display:flex; gap:1em; margin-top:0.3em; align-items:stretch;
+    height:min(75vh, 900px); min-height:320px;
+  }
+  .editor-split > div { flex:1; min-width:0; height:100%; display:flex; flex-direction:column; }
   .preview-box {
+    flex:1; min-height:0;
     border:1px solid var(--FormBG); border-radius:0.5em; padding:8px;
-    min-height:320px; overflow-y:auto; background:var(--MidColBG);
+    overflow-y:auto; background:var(--MidColBG); box-sizing:border-box;
   }
   .preview-label { font-size:small; color:var(--VLinkColor); margin-bottom:4px; }
   .btn-row { margin-top:1em; }

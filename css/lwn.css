@@ -646,7 +646,7 @@ br.clear { clear: both; }
 /* ============================================================
    文章右侧 TOC（按 markdown 标题自动生成）— LWN 朴素风
    ============================================================ */
-.article-toc { font-size: 1.35em; position: sticky; top: 50px; }
+.article-toc { font-size: 1.35em; position: sticky; top: 50px; max-height: calc(100vh - 70px); overflow-y: auto; overscroll-behavior: contain; }
 .article-toc p.Header {
   font-weight: bold;
   text-indent: 0;
