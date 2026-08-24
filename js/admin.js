@@ -183,7 +183,11 @@ async function showEditor() {
     const rewritten = md
       .replace(/!\[([^\]]*)\]\((\.?\/)?picture\/([^)]+)\)/g, '![$1](/picture/$3)')
       .replace(/(<img\s+[^>]*?src=["'])(\.?\/)?picture\/([^"']+)(["'][^>]*?>)/g, '$1/picture/$3$4');
-    pv.innerHTML = marked.parse(rewritten);
+    // 按 markdown 块拆分渲染，每块带 data-line 源行号，支持双击定位回编辑器
+    const blocks = splitMdBlocks(rewritten);
+    pv.innerHTML = blocks.map(b =>
+      '<div data-line="' + b.line + '" style="display:contents">' + marked.parse(b.text) + '</div>'
+    ).join('');
     // 渲染数学公式
     if (typeof window.renderMathInElement === 'function') {
       window.renderMathInElement(pv, {
@@ -196,6 +200,25 @@ async function showEditor() {
     }
   };
   ta.addEventListener('input', renderPreview);
+
+  // Overleaf 风格：双击预览某处 → 光标定位回编辑器对应行
+  pv.addEventListener('dblclick', (e) => {
+    const el = e.target.closest('[data-line]');
+    if (el) syncEditorToLine(parseInt(el.getAttribute('data-line'), 10));
+  });
+
+  // 供文章预览弹窗（opener 场景）调用的全局入口
+  window.syncEditorToLine = function (line) {
+    const ta0 = document.getElementById('content');
+    if (!ta0 || isNaN(line)) return;
+    const lines = ta0.value.split('\n');
+    let offset = 0;
+    for (let i = 0; i < line && i < lines.length; i++) offset += lines[i].length + 1;
+    offset = Math.min(offset, ta0.value.length);
+    ta0.focus();
+    ta0.setSelectionRange(offset, offset); // 浏览器会自动滚动文本域，使光标可见
+    markDirty();
+  };
 
   // 粘贴板支持：Ctrl+V 粘贴图片直接进 picture/ 并在光标处插入引用
   ta.addEventListener('paste', handlePaste);
@@ -324,8 +347,52 @@ function previewArticle() {
   const preview = document.getElementById('preview').innerHTML;
   const win = window.open('', '_blank');
   if (!win) { flash(t('预览窗口被浏览器拦截，请允许弹窗'), 'err'); return; }
-  win.document.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + t(' - SUN Notes 预览') + '</title><link rel="stylesheet" href="css/lwn.css"><main style="max-width:900px;margin:2em auto;padding:1em"><h1>' + esc(title) + '</h1><div class="markdown-body">' + preview + '</div></main>');
+  win.document.write('<!doctype html><meta charset="utf-8"><title>' + esc(title) + t(' - SUN Notes 预览') + '</title><link rel="stylesheet" href="css/lwn.css">'
+    + '<style>html,body{height:100%;margin:0;}body{display:flex;flex-direction:column;}'
+    + '.pv-head{flex:none;padding:0.6em 1.2em;border-bottom:1px solid var(--FormBG);font-size:0.85em;color:var(--TextDim);}'
+    + '.pv-body{flex:1;min-height:0;overflow-y:auto;}main{max-width:900px;margin:0 auto;padding:1em 1.2em 3em;}</style>'
+    + '<div class="pv-head">' + esc(title) + t(' - 双击预览内容可定位回编辑器') + '</div>'
+    + '<div class="pv-body"><main><h1>' + esc(title) + '</h1><div class="markdown-body">' + preview + '</div></main></div>');
   win.document.close();
+  // 双击弹窗内预览内容 → 通过 opener 定位回编辑器对应行
+  win.document.addEventListener('dblclick', (e) => {
+    const el = e.target.closest('[data-line]');
+    if (el && win.opener && win.opener.syncEditorToLine) {
+      win.opener.syncEditorToLine(parseInt(el.getAttribute('data-line'), 10));
+    }
+  });
+}
+
+/* ---------- Markdown 块拆分（供预览→编辑器双击定位） ---------- */
+// 把 markdown 源码按"块"切分（代码围栏整体保留，其余按空行分组），
+// 返回 [{ line, text }]，line 为块起始行的 0 基行号。
+function splitMdBlocks(src) {
+  const lines = src.split('\n');
+  const blocks = [];
+  let i = 0;
+  let fence = null; // 代码围栏字符（` 或 ~），null 表示不在围栏内
+  while (i < lines.length) {
+    const line = lines[i];
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+    if (fence === null && fenceMatch) {
+      fence = fenceMatch[1][0];
+      const start = i;
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith(fence)) i++;
+      i = Math.min(i + 1, lines.length); // 包含围栏结束行
+      blocks.push({ line: start, text: lines.slice(start, i).join('\n') });
+      fence = null;
+      continue;
+    }
+    if (line.trim() !== '') {
+      const start = i;
+      while (i < lines.length && lines[i].trim() !== '') i++;
+      blocks.push({ line: start, text: lines.slice(start, i).join('\n') });
+    } else {
+      i++;
+    }
+  }
+  return blocks;
 }
 
 function setupAutocomplete(ta) {
@@ -544,10 +611,8 @@ function setupFormGuards(ta) {
   });
 
   // 自动 resize textarea
-  function autoResize() {
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(800, Math.max(320, ta.scrollHeight + 4)) + 'px';
-  }
+  // 高度由 CSS flex 控制（与预览窗口对齐），这里只做一次无操作保持监听器兼容
+  function autoResize() {}
   ta.addEventListener('input', autoResize);
   formFieldHandlers.push({el: ta, ev: 'input', fn: autoResize});
   autoResize();
