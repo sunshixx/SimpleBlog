@@ -36,6 +36,8 @@ const api = {
   get:  id => fetch('/api/articles/'+id).then(r=>r.json()),
   save: (data,id) => authedFetch(id?'/api/articles/'+id:'/api/articles',{method:id?'PUT':'POST',headers:authH(),body:JSON.stringify(data)}).then(r=>r.json()),
   del:  id => authedFetch('/api/articles/'+id,{method:'DELETE',headers:authH()}).then(r=>r.json()),
+  export: () => authedFetch('/api/articles/export',{headers:authHNoCT()}),
+  import: (data, isArchive) => authedFetch('/api/articles/import',{method:'POST',headers:isArchive?{...authHNoCT(),'Content-Type':'application/gzip'}:authH(),body:isArchive?data:JSON.stringify(data)}).then(r=>r.json()),
   // 图片库
   picList:   () => fetch('/api/pictures').then(r=>r.json()),
   picUpload: fd => authedFetch('/api/pictures',{method:'POST',headers:authHNoCT(),body:fd}).then(r=>r.json()),
@@ -167,6 +169,12 @@ async function showEditor() {
     <h2 class="Headline draft-heading" style="margin-top:2em;">${t('待发布草稿')}</h2>
     <div id="draftList"></div>
     <h2 id="publishedHeading" class="Headline" style="margin-top:2em;">${t('已发布文章')}</h2>
+    <div class="btn-row">
+    <button class="btn" id="exportArticles" type="button">${t('一键导出文章')}</button>
+    <button class="btn" id="importArticles" type="button">${t('一键导入文章')}</button>
+    <input type="file" id="importFile" accept=".tar.gz,.json,application/gzip,application/json" style="display:none">
+    <span class="Smaller">${t('导入说明')}</span>
+    </div>
     <div id="alist"></div>
 
   </div>
@@ -235,12 +243,55 @@ async function showEditor() {
   document.getElementById('saveDraft').addEventListener('click', saveDraft);
   document.getElementById('previewArticle').addEventListener('click', previewArticle);
   document.getElementById('clear').addEventListener('click', clearForm);
+  document.getElementById('exportArticles').addEventListener('click', exportArticles);
+  document.getElementById('importArticles').addEventListener('click', () => document.getElementById('importFile').click());
+  document.getElementById('importFile').addEventListener('change', importArticles);
 
   // 未保存修改提示 + 自动 resize + Ctrl+Enter 发布 + 作者记忆
   setupFormGuards(ta);
   restoreRecoveryDraft();
 
   await loadList();
+}
+
+async function exportArticles() {
+  const btn = document.getElementById('exportArticles');
+  if (!btn) return;
+  btn.disabled = true;
+  try {
+    const response = await api.export();
+    if (!response.ok) throw new Error(t('导出失败'));
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'sun-notes-backup.tar.gz';
+    link.click();
+    URL.revokeObjectURL(url);
+    flash(t('文章导出成功'), 'ok');
+  } catch (e) {
+    flash(t('导出失败：') + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function importArticles(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  input.value = '';
+  if (!confirm(t('导入确认'))) return;
+  try {
+    const isArchive = file.name.toLowerCase().endsWith('.tar.gz') || file.type === 'application/gzip';
+    const data = isArchive ? file : JSON.parse(await file.text());
+    const result = await api.import(data, isArchive);
+    if (!result.ok) throw new Error(result.error || t('导入失败'));
+    flash(t('文章导入成功（新增 {added} 篇，更新 {replaced} 篇）', result), 'ok');
+    await loadList();
+  } catch (e) {
+    flash(t('导入失败：') + e.message, 'err');
+  }
 }
 
 const DRAFTS_KEY = 'sun_notes_drafts';

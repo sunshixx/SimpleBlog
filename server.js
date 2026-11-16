@@ -31,6 +31,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = 8088;
 const ROOT = __dirname;
@@ -381,6 +382,132 @@ function deleteArticle(id) {
   try { fs.unlinkSync(cf); } catch (e) {}
   COMMENTS_INDEX.delete(aid);
   return true;
+}
+
+function normalizeImportedArticle(data) {
+  const id = Number(data.id);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('文章 ID 无效');
+  if (!String(data.title || '').trim()) throw new Error('文章标题不能为空');
+  if (typeof data.content !== 'string') throw new Error('文章正文无效');
+  return {
+    id,
+    title: String(data.title),
+    subscription: data.subscription === true,
+    category: String(data.category || 'Development'),
+    author: String(data.author || 'anonymous'),
+    date: String(data.date || ''),
+    time: String(data.time || ''),
+    weekday: String(data.weekday || ''),
+    updatedAt: String(data.updatedAt || new Date().toISOString()),
+    comments: 0,
+    tags: Array.isArray(data.tags) ? data.tags.map(tag => String(tag)) : [],
+    summary: String(data.summary || ''),
+    content: data.content
+  };
+}
+
+function importArticles(data) {
+  if (!data || data.format !== 'sun-notes-articles' || data.version !== 1 || !Array.isArray(data.articles)) {
+    throw new Error('导入文件格式无效');
+  }
+  const imported = data.articles.map(normalizeImportedArticle);
+  const ids = new Set();
+  for (const article of imported) {
+    if (ids.has(article.id)) throw new Error('导入文件包含重复文章 ID: ' + article.id);
+    ids.add(article.id);
+  }
+
+  const existingIds = imported.filter(article => ARTICLES.some(a => a.id === article.id)).map(article => article.id);
+  existingIds.forEach(id => deleteArticle(id));
+  imported.forEach(article => {
+    writeArticleFile(article);
+    ARTICLES.push(article);
+  });
+  ARTICLES.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
+  return { imported: imported.length, replaced: existingIds.length, added: imported.length - existingIds.length };
+}
+
+function tarHeader(name, size, mode) {
+  const header = Buffer.alloc(512);
+  const write = (value, offset, length) => {
+    Buffer.from(value).copy(header, offset, 0, length);
+  };
+  write(name, 0, 100);
+  write((mode || 0o644).toString(8).padStart(7, '0') + '\0', 100, 8);
+  write('0000000\0', 108, 8);
+  write('0000000\0', 116, 8);
+  write(size.toString(8).padStart(11, '0') + '\0', 124, 12);
+  write(Math.floor(Date.now() / 1000).toString(8).padStart(11, '0') + '\0', 136, 12);
+  header[156] = 0x30;
+  write('ustar\0', 257, 6);
+  write('00', 263, 2);
+  write('sun-notes', 265, 32);
+  header.fill(0x20, 148, 156);
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  write(checksum.toString(8).padStart(6, '0') + '\0 ', 148, 8);
+  return header;
+}
+
+function createTarGz(entries) {
+  const chunks = [];
+  entries.forEach(entry => {
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data);
+    chunks.push(tarHeader(entry.name, data.length, entry.mode));
+    chunks.push(data);
+    const padding = (512 - (data.length % 512)) % 512;
+    if (padding) chunks.push(Buffer.alloc(padding));
+  });
+  chunks.push(Buffer.alloc(1024));
+  return zlib.gzipSync(Buffer.concat(chunks), { level: 6 });
+}
+
+function parseTarGz(buffer) {
+  const tar = zlib.gunzipSync(buffer);
+  const entries = [];
+  for (let offset = 0; offset + 512 <= tar.length;) {
+    const header = tar.subarray(offset, offset + 512);
+    if (header.every(byte => byte === 0)) break;
+    const name = header.subarray(0, 100).toString('utf-8').replace(/\0.*$/, '');
+    const sizeText = header.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim();
+    const size = parseInt(sizeText, 8);
+    if (!name || !Number.isSafeInteger(size) || size < 0 || offset + 512 + size > tar.length) {
+      throw new Error('压缩包格式无效');
+    }
+    if (header[156] !== 0x30) throw new Error('压缩包包含不支持的文件类型');
+    entries.push({ name, data: Buffer.from(tar.subarray(offset + 512, offset + 512 + size)) });
+    offset += 512 + Math.ceil(size / 512) * 512;
+  }
+  return entries;
+}
+
+function importTarGz(buffer) {
+  const entries = parseTarGz(buffer);
+  const manifestEntry = entries.find(entry => entry.name === 'manifest.json');
+  if (!manifestEntry) throw new Error('压缩包缺少 manifest.json');
+  let manifest;
+  try { manifest = JSON.parse(manifestEntry.data.toString('utf-8')); }
+  catch (e) { throw new Error('manifest.json 无效'); }
+  if (!manifest || manifest.format !== 'sun-notes-articles' || manifest.version !== 2) {
+    throw new Error('导入文件格式无效');
+  }
+  const pictures = entries.filter(entry => entry.name.startsWith('picture/') && entry.name !== 'picture/');
+  for (const entry of pictures) {
+    const relative = entry.name.replace(/\\/g, '/');
+    const target = safeRelativeDir(relative);
+    if (!target || path.extname(relative).toLowerCase() === '' || !PICTURE_EXT.has(path.extname(relative).toLowerCase())) {
+      throw new Error('压缩包包含无效图片路径');
+    }
+    if (!isRealImage(path.extname(relative).toLowerCase(), entry.data)) {
+      throw new Error('压缩包包含无效图片文件');
+    }
+  }
+  const result = importArticles({ format: 'sun-notes-articles', version: 1, articles: manifest.articles });
+  for (const entry of pictures) {
+    const target = safeRelativeDir(entry.name.replace(/\\/g, '/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, entry.data);
+  }
+  return { ...result, pictures: pictures.length };
 }
 
 function getTagIndex() {
@@ -870,6 +997,49 @@ async function handleAPI(req, res, pathname, method, urlObj) {
   if (pathname === '/api/articles' && method === 'GET') {
     refreshArticlesIndex();
     return sendJSON(res, 200, getArticles());
+  }
+
+  if (pathname === '/api/articles/export' && method === 'GET') {
+    if (!checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
+    refreshArticlesIndex();
+    const manifest = {
+      format: 'sun-notes-articles',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      articles: ARTICLES
+    };
+    const entries = [{ name: 'manifest.json', data: JSON.stringify(manifest, null, 2) }];
+    if (fs.existsSync(PICTURE_DIR)) {
+      fs.readdirSync(PICTURE_DIR).forEach(name => {
+        const file = path.join(PICTURE_DIR, name);
+        if (PICTURE_EXT.has(path.extname(name).toLowerCase()) && fs.statSync(file).isFile()) {
+          entries.push({ name: 'picture/' + name, data: fs.readFileSync(file) });
+        }
+      });
+    }
+    const archive = createTarGz(entries);
+    res.writeHead(200, {
+      'Content-Type': 'application/gzip',
+      'Content-Length': archive.length,
+      'Content-Disposition': 'attachment; filename="sun-notes-backup.tar.gz"'
+    });
+    return res.end(archive);
+  }
+
+  if (pathname === '/api/articles/import' && method === 'POST') {
+    if (!checkAuth(req)) return sendJSON(res, 401, { error: '未授权' });
+    try {
+      const body = await readBody(req, { maxSize: 200 * 1024 * 1024 });
+      let result;
+      if ((req.headers['content-type'] || '').includes('application/gzip')) {
+        result = importTarGz(body);
+      } else {
+        result = importArticles(JSON.parse(body.toString('utf-8')));
+      }
+      return sendJSON(res, 200, { ok: true, ...result });
+    } catch (e) {
+      return sendJSON(res, 400, { error: e.message || '导入失败' });
+    }
   }
 
   const articleMatch = pathname.match(/^\/api\/articles\/(\d+)$/);
